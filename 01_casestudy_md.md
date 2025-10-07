@@ -34,10 +34,13 @@ Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008)
 Two type of predictions may be possible using frailty:
 
 - Conditional: predictions given the frailty/random effects  
-  For the shared gamma frailty:  
+  For the shared gamma frailty:
+
   $$S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] = exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] = exp[-H(t)e^{u_i}]$$
 
-  where $$Z_i \sim \Gamma(\theta, \theta)$$
+  where
+
+  $$Z_i \sim \Gamma(\theta, \theta)$$
 
 For details see the book written by David Collett Modelling Survival
 Data in Medical Research, $4^{th}$ edition, Chapter 10 (10.2.1-10.3),
