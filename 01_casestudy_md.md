@@ -530,16 +530,19 @@ par(xaxs = "i",
     las = 1)
 plot(sf_cluster,
      col = "gray",
+     fun = "event",
      xlim = c(0, 350),
      ylim = c(0, 1),
      bty = "n",
-     xlab = "Time",
-     ylab = "Time-to-first insemination",
-     main = "Overall and by herds time-to-first insemination")
+     xlab = "Time-to-first insemination (days)",
+     ylab = "Probability",
+     main = "Overall and by herds inverted Kaplan-Meier curves")
 lines(sf_overall,
+      fun = "event",
       lwd = 2,
       col = "red",
       conf.int = FALSE)
+
 
 # Time quantiles
 q_overall <- quantile(sf_overall,
