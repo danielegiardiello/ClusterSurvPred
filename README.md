@@ -39,6 +39,45 @@ In either case, you can then use the `ClusterSurvPred.Rproj` file to open
 and Rstudio session in the directory you have just downloaded. You may then knit
 both rmarkdown files, or run them line-by-line.
 
+Code for the illustrative case study: 
++ Directly available online using [01_casestudy_md.md] (https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_md.md) or using the [pdf version](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_pdf.pdf)
+  
++  One can download and open the [html file](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_html.html)
+
++ The corresponding source files are the .Rmd files. We define three different source files since there are some cosmetical changes. 
+
+``` r
+.
+├── 01_casestudy_html.html
+├── 01_casestudy_html.Rmd
+├── 01_casestudy_md.md
+├── 01_casestudy_md.Rmd
+├── 01_casestudy_pdf.pdf
+├── 01_casestudy_pdf.Rmd
+├── ClusterSurvPred.Rproj
+├── Data
+│   └── insem.rds
+├── Functions
+│   ├── predict.coxph.gammafrail.R
+│   ├── rate_cens_bisection.R
+│   └── ReadMe.md
+├── imgs
+│   ├── additional-1.pdf
+│   ├── additional-1.png
+│   ├── descriptives-1.pdf
+│   ├── descriptives-1.png
+│   ├── descriptives-2.pdf
+│   ├── descriptives-2.png
+│   ├── KMcurves-1.png
+│   └── plot_cluster_size-1.png
+├── LICENSE
+├── Output
+│   ├── df_perf_casestudy_large.rds
+│   ├── df_perf_casestudy_small.rds
+│   └── ReadMe.md
+└── README.md
+```
+
 ## Contributions
 
 | Name                                                         | Affiliation                           | Role                  |
