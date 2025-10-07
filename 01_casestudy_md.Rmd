@@ -34,7 +34,7 @@ Two type of predictions may be possible using frailty:
 + Conditional: predictions given the frailty/random effects  
   For the shared gamma frailty:  
     
-  $$S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] = exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] = exp[-H(t)e^{u_i}]$$
+$$S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] = exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] = exp[-H(t)e^{u_i}]$$
   
   where
     
