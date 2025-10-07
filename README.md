@@ -40,7 +40,7 @@ and Rstudio session in the directory you have just downloaded. You may then knit
 both rmarkdown files, or run them line-by-line.
 
 Code for the illustrative case study: 
-+ Directly available online using [01_casestudy_md.md] (https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_md.md) or using the [pdf version](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_pdf.pdf)
++ Directly available online using [01_casestudy_md.md](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_md.md) or using the [pdf version](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_pdf.pdf)
   
 +  One can download and open the [html file](https://github.com/danielegiardiello/ClusterSurvPred/blob/main/01_casestudy_html.html)
 
