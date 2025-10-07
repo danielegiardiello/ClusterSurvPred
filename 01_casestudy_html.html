@@ -11,7 +11,7 @@
 
 <meta name="author" content="Daniele Giardiello, Edoardo Ratti, Peter C. Austin" />
 
-<meta name="date" content="2025-10-06" />
+<meta name="date" content="2025-10-07" />
 
 <title>The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models</title>
 
@@ -1797,7 +1797,7 @@ shared gamma frailty Cox proportional hazards models</h1>
 <h3 class="subtitle">R code for the illustrative case study</h3>
 <h4 class="author">Daniele Giardiello, Edoardo Ratti, Peter C.
 Austin</h4>
-<h4 class="date">2025-10-06</h4>
+<h4 class="date">2025-10-07</h4>
 
 </div>
 
@@ -2587,14 +2587,14 @@ insem_ref &lt;-
 
 
 # Herds &gt;= 50 cows
-table_insem_50 &lt;-
+table_insem_small &lt;-
   insem_ref %&gt;%
   dplyr::count(Herd) %&gt;%
   dplyr::filter(n &lt; 50 &amp; n &gt;= 10)
 
 df_insem_small &lt;- 
   insem_ref %&gt;%
-  dplyr::filter(Herd %in% table_insem_50$Herd)
+  dplyr::filter(Herd %in% table_insem_small$Herd)
 
 # Repeat B times
 B &lt;- 110
@@ -3561,7 +3561,7 @@ df_tbl_insem &lt;-
 <tr>
 <th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="15">
 <div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
-Small cluster scenario
+Large cluster scenario
 </div>
 </th>
 </tr>

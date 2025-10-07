@@ -1,64 +1,71 @@
----
-title: The impact of the size and the number of clusters on prediction performance
-  of the stratified and the conditional shared gamma frailty Cox proportional hazards
-  models
-author: "Daniele Giardiello, Edoardo Ratti, Peter C. Austin"
-date: "`r Sys.Date()`"
-output:
-  html_document:
-    toc: true
-    toc_float: true
-    toc_depth: 6
-    code_folding: hide
-  pandoc_args: "--webtex"
-  pdf_document:
-    toc: true
-    toc_depth: '6'
-subtitle: R code for the illustrative case study
-always_allow_html: true
----
+The impact of the size and the number of clusters on prediction
+performance of the stratified and the conditional shared gamma frailty
+Cox proportional hazards models
+================
+Daniele Giardiello, Edoardo Ratti, Peter C. Austin
 
-```{r setup, include=FALSE}
-# Knitr options
-knitr::opts_chunk$set(
-  fig.retina = 3,
-  fig.path = "imgs/",
-  echo = FALSE
-)
-```
+- [**Overview**](#overview)
+- [**Recap of predictions from shared gamma frailty Cox
+  models**](#recap-of-predictions-from-shared-gamma-frailty-cox-models)
+- [**Load packages**](#load-packages)
+- [**Import useful functions**](#import-useful-functions)
+- [**Import data**](#import-data)
+- [**1. Descriptive statistics**](#1-descriptive-statistics)
+- [**2. Analysis**](#2-analysis)
+  - [**2.1 Small cluster size**](#21-small-cluster-size)
+  - [**2.2 Large cluster size**](#22-large-cluster-size)
+- [**3. Additional investigations**](#3-additional-investigations)
+- [**Reproducibility ticket**](#reproducibility-ticket)
 
 ### **Overview**
-We illustrate the analysis of the case study accompanying the simulation study about the impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models.
-The case study is the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html) described by the book of
-Duchateau and Janssen [The Frailty Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008) (example 1.8)
+
+We illustrate the analysis of the case study accompanying the simulation
+study about the impact of the size and the number of clusters on
+prediction performance of the stratified and the conditional shared
+gamma frailty Cox proportional hazards models. The case study is the
+insem data from the R package
+[`parfm`](https://cran.r-project.org/web/packages/parfm/index.html)
+described by the book of Duchateau and Janssen [The Frailty
+Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008)
+(example 1.8)
 
 ### **Recap of predictions from shared gamma frailty Cox models**
 
-Two type of predictions may be possible using frailty:  
-  
-+ Conditional: predictions given the frailty/random effects  
+Two type of predictions may be possible using frailty:
+
+- Conditional: predictions given the frailty/random effects  
   For the shared gamma frailty:  
   $$S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] = exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] = exp[-H(t)e^{u_i}]$$
-  
-  where
-  $$Z_i \sim \Gamma(\theta, \theta)$$
-  
-For details see the book written by David Collett Modelling Survival Data in Medical Research,  $4^{th}$ edition,  Chapter 10 (10.2.1-10.3), 306-307. [book link](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW)   
-  
 
-+ Marginal: integrating over frailty/random effects    
-  For the shared gamma frailty the marginal predictions may be used when the new individual does not belong to any cluster used to develop the model or to estimate predictions integrating over all frailty 
-  Conditional predictions can be used when the new individual belongs to a cluster used to develop the model.   
+  where $$Z_i \sim \Gamma(\theta, \theta)$$
+
+For details see the book written by David Collett Modelling Survival
+Data in Medical Research, $4^{th}$ edition, Chapter 10 (10.2.1-10.3),
+306-307. [book
+link](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW)
+
+- Marginal: integrating over frailty/random effects  
+  For the shared gamma frailty the marginal predictions may be used when
+  the new individual does not belong to any cluster used to develop the
+  model or to estimate predictions integrating over all frailty
+  Conditional predictions can be used when the new individual belongs to
+  a cluster used to develop the model.
 
 $$S^*_i(t) = [1 + \theta^{-1}e^{\beta x_i}H_0(t)]^{-\theta}$$
 
-
-
 ### **Load packages**
 
-The following libraries are needed to achieve the following goals, if you have not them installed, please use install.packages('') (e.g. install.packages('survival')) or use the user-friendly approach if you are using RStudio.
+The following libraries are needed to achieve the following goals, if
+you have not them installed, please use install.packages(’‘)
+(e.g. install.packages(’survival’)) or use the user-friendly approach if
+you are using RStudio.
 
-```{r, wdlib, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
 # Use pacman to check whether packages are installed, if not load
 if (!require("pacman")) install.packages("pacman")
 library(pacman)
@@ -87,229 +94,20 @@ pacman::p_load(
 )
 ```
 
+</details>
+
 ### **Import useful functions**
 
 We import useful functions
 
-```{r, import_functions, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
+<details>
+<summary>
+Click to expand code
+</summary>
 
+``` r
 # Useful functions
 source(here::here("Functions/predict.coxph.gammafrail.R"))
-
-# We report the function also below
-
-#' @description
-#' 
-#' Function to estimate conditional and marginal 
-#' survival probabilities at specified time horizons
-#' for shared Gamma frailty Cox proportional hazards models
-#' 
-#' @author Daniele Giardiello
-#' @param model cox model using survival::coxph including frailty gamma term 
-#' It is highly recommended to center all variables or define a reference value
-#' for all predictors, especially the continuous predictors
-#' Example: age50 = age - 50 or age_c = age - mean(age)
-#' @param newdata newdata (for validation). This should have the same variables of the model.
-#' Predictors with levels should be coded with exactly the same way and levels of the predictors
-#' with factors used to develop the model
-#' @param cluster cluster variable. Only one variable possible
-#' @param times prediction horizon time(s)
-#' @examples
-#' # example code
-#' data(lung, package = "survival")
-#' lung$age_c <- lung$age - mean(lung$age)
-#' cox_frailty_lung <- survival::coxph(Surv(time, status) ~ age_c + frailty(inst,
-#' distribution = "gamma"), 
-#' data = lung,
-#' x = TRUE,
-#' y = TRUE,
-#' model = TRUE,
-#' ties = "breslow")
-#' predict.coxph.gammafrail(model = cox_frailty_lung,
-#' newdata = lung_sel,
-#' cluster = "inst",
-#' times = c(100, 200, 300))
-#' @references Collett D - Modelling Survival data in Medical Research, 4th edition chapter 10 (formula 10.9 and 10.12)
-
-
-predict.coxph.gammafrail <- function(model,
-                                     newdata,
-                                     cluster,
-                                     times) {
-  
-  # sanity check message warning
-  on.exit(base::message("
-  Sanity check warning: 
-  please center all variables before fitting the model or assign reference values
-                for continuous variable. 
-                For example age50 = age - 50.
-                newdata should contain the centered/referenced values"))
-  
-  # Stopping messages
-  if (!inherits(model, "coxph"))
-    stop("`model` must be a survival::coxph fit. 
-         Please center all variables before fitting the model or assign reference values
-         for continuous variable. For example age50 = age - 50")
-  
-  if (missing(cluster))
-    stop("Please supply the name of the cluster variable (character).")
-  
-  if (!is.character(cluster) || length(cluster) != 1L)
-    stop("`cluster` must be a single character string giving the cluster column name.")
-  
-  if (!cluster %in% names(newdata))
-    stop("`cluster` not found in `newdata`.")
-  
-  
-  # Start function ----
-  # Step0: 
-  # Formula with all terms including cluster as it is a fixed covariate
-  frm_allterms <- reformulate(base::all.vars(model$formula[[3]]))
-  
-  # Select only the complete cases of fixed + frailty terms
-  newdata <- stats::model.frame(frm_allterms,
-                                data = newdata,
-                                na.action = na.omit)
-
-  # Step 1: survfit for
-  # a baseline cumulative hazard / survival
-  
-  # Survfit of the coxph with frailty
-  sf_model <- survival::survfit(model)
-  
-  # NOTE: the survival::survfit with frailty does not accept newdata
-  # thus, it is important to center all variables or give them a reference.
-  # In this setting survfit$cumhaz will directly represent our baseline  
-  
-  # Step 2: linear predictors of fixed effects
-  
-  # Estimate linear predictors only
-  # for fixed-effect effects without frailties
-  # This will be also useful later when 
-  # marginal predictions are estimated
-
-  
-  # Since with clusters size < vs >= 5
-  # frailty terms are treated as coefficients or not,
-  # I prefer calculate lp for the only fixed terms only manually
-  
-  # lp calculation for marginal
-  # save all model coefficients
-  # for cluster < 5, frailty terms are included in coefficients (not practical)
-  coefs <- model$coefficients
-  
-  # Remove frailty named "gamma"
-  # NOTE/WARNING: 
-  # if a variables called gamma it must be a problem
-  # to be adjusted
-  coefs_fixed <- coefs[!base::grepl("gamma", names(coefs))]
-  
-  # create formula of fixed terms only
-  terms_vec <- attr(terms(model$formula), 
-                    "term.labels")
-  
-  # Remove specials using grep/grepl
-  # NOTE: working in progress
-  specials <- c("frailty", "strata", "cluster", "offset", "tt")
-  fixed_terms <- terms_vec[!grepl(paste(specials, collapse = "|"), terms_vec)]
-
-  
-  formula_fixed <- stats::reformulate(fixed_terms,
-                                      response = NULL)
-  
-  # create design matrix of fixed term only
-  X_fixed <- model.matrix(formula_fixed,
-                          newdata)
-
-  X_fixed <- X_fixed[, colnames(X_fixed) != "(Intercept)"]
-
-  # estimate linear predictor X*beta fixed term only
-  lp_fixed <- X_fixed %*% cbind(coefs_fixed)
-  
-  # this should be equivalent to this (when cluster > 5)
-  # lp_nofrail <- cbind(predict(model,
-  #                             newdata = newdata,
-  #                             type = "lp"))
-  
-  
-  # Step 3: linear predictors for frailty terms
-  
-  # NOTE/WARNING:
-  # for cluster < 5 predict.coxph(model, newdata) includes also frailty
-  # and frailty terms must not be included for marginal predictions.
-  # This leads to wrong estimations of marginal predictions 
-  # and the corresponding performance metrics in riskRegression::Score()
-  
-  # For frailty with not model$frail (where clusters < 5)
-  # add the model$frail and keep only fixed-effect coefficients
-  if(is.null(model$frail)) {
-    coefs_model <- model$coefficients
-    model$frail <- unname(coefs_model[base::grep("gamma", names(coefs_model))])
-  }
-  
-  # Force cluster as a factor in the newdata
-  # number of clusters in the newdata 
-  
-  # otherwise a factor
-  # NOTE: for newdata with one cluster, factor does not work
-  # newdata[[cluster]] <- base::as.character(newdata[[cluster]])
-   newdata[[cluster]] <- base::factor(newdata[[cluster]],
-                                      levels = unique(newdata[[cluster]]))
-  
-  # newdata[[cluster]] <- base::factor(newdata[[cluster]],
-  #                                    levels = 1:length(model$frail))
-  # Create the design matrix for frailty terms
-  all_terms <- base::all.vars(model$formula[[3]])
-  frailty_terms <- c(-1, all_terms[all_terms == cluster])
-  X_frail <- stats::model.matrix(stats::reformulate(frailty_terms),
-                                 response = NULL,
-                                 data = newdata)
-  
-  # Frailty terms linear predictors
-  lp_frail <- X_frail %*% cbind(model$frail)
-  
-  # Total linear predictor
-  lp_total <- lp_fixed + lp_frail
- 
-  
-  # Cumulative hazards
-  # at fixed time horizons
-  # H_0(t)
-  cumhaz0_thor <- stats::approx(
-    x = sf_model$time,
-    y = sf_model$cumhaz,
-    yleft = 0, # y values below min(x). Cumulative hazard zero if below min(time)
-    yright = NA, # y values above max(x). Cumulative hazard NA if above max(time)
-    xout = times,
-    method = "constant",
-    f = 0,
-    rule = 1)$y
-  
-  # NOTE: 
-  # stats:approx should work fine since
-  # all values from survival::survfit are unique
-  # for the event time of development data
-  
-  # H(t)
-  cumhaz_thor <- exp(lp_total) %*% cumhaz0_thor
-  
-  # conditional S(t)
-  S_cond_t <- exp(-cumhaz_thor)
-  
-  # marginal S(t)
-  theta_hat <- model$history[[1]]$theta
-  S_marg_t <- (1 + theta_hat * (exp(lp_fixed) %*% cumhaz0_thor))^(-1/theta_hat)
-  
-  # Output 
-  # NOTE: to be better defined
-  res <- list("conditional" = S_cond_t,
-              "marginal" = S_marg_t)
-  
-  return(res)
-  # Report only conditional predictions
-  #return(S_cond_t)
-  
-}
 
 # Other ad-hoc functions
 # Score function with TryCatch
@@ -398,14 +196,19 @@ calhaz_map <- function(time,
 }
 ```
 
+</details>
 
 ### **Import data**
 
-Insem data can be imported using the `parfm` R package.
-We also saved insem data in our repository in the .rds format.
+Insem data can be imported using the `parfm` R package. We also saved
+insem data in our repository in the .rds format.
 
+<details>
+<summary>
+Click to expand code
+</summary>
 
-```{r, import_data, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
+``` r
 # Import from the repository
 insem <- readRDS(here::here("Data/insem.rds"))
 
@@ -414,12 +217,18 @@ data(insem,
      package = "parfm")
 ```
 
+</details>
+
 ### **1. Descriptive statistics**
 
 We provide some descriptive statistics of the case study
 
-```{r, descriptives, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
+<details>
+<summary>
+Click to expand code
+</summary>
 
+``` r
 insem_tab_01 <-
   insem %>%
   dplyr::select(Ureum,
@@ -453,8 +262,121 @@ gtsummary::tbl_summary(
   gtsummary::as_kable_extra() %>%
   kableExtra::kable_styling("striped",
                             position = "center") 
+```
 
+</details>
+<table style="NAborder-bottom: 0; margin-left: auto; margin-right: auto;" class="table table-striped">
+<thead>
+<tr>
+<th style="text-align:left;">
+Characteristic
+</th>
+<th style="text-align:center;">
+N = 10,513
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Milk urem concentration (%)
+</td>
+<td style="text-align:center;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Mean (SD)
+</td>
+<td style="text-align:center;">
+2.58 (0.74)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Median (Range)
+</td>
+<td style="text-align:center;">
+2.55 (0.54, 8.24)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Protein concentration (%)
+</td>
+<td style="text-align:center;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Mean (SD)
+</td>
+<td style="text-align:center;">
+3.25 (0.34)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Median (Range)
+</td>
+<td style="text-align:center;">
+3.21 (2.25, 6.48)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Number of calvings
+</td>
+<td style="text-align:center;">
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Mean (SD)
+</td>
+<td style="text-align:center;">
+2 (2)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;padding-left: 2em;" indentlevel="1">
+Median (Range)
+</td>
+<td style="text-align:center;">
+2 (1, 14)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Primiparous cow
+</td>
+<td style="text-align:center;">
+4,200 (40%)
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Inseminated cows
+</td>
+<td style="text-align:center;">
+9,939 (95%)
+</td>
+</tr>
+</tbody>
+<tfoot>
+<tr>
+<td style="padding: 0; " colspan="100%">
+<sup>1</sup> n (%)
+</td>
+</tr>
+</tfoot>
+</table>
+<details>
+<summary>
+Click to expand code
+</summary>
 
+``` r
 # Cluster size distribution
 table_cluster <-
   insem %>%
@@ -476,7 +398,18 @@ barplot(table(insem$Herd),
 #                             position = "center") %>%
 #     kableExtra::add_header_above(
 #      c("Cluster size distribution" = 2))
+```
 
+</details>
+
+<img src="imgs/plot_cluster_size-1.png" width="672" style="display: block; margin: auto;" />
+
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
 # Summary cluster size
 summary_cluster <-
   table_cluster %>%
@@ -493,7 +426,78 @@ kable(summary_cluster) %>%
   kableExtra::kable_styling("striped") %>%
     kableExtra::add_header_above(
      c("Cluster size statistics" = 7))
+```
 
+</details>
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="7">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+Cluster size statistics
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="text-align:right;">
+min
+</th>
+<th style="text-align:right;">
+q25
+</th>
+<th style="text-align:right;">
+mean
+</th>
+<th style="text-align:right;">
+sd
+</th>
+<th style="text-align:right;">
+median
+</th>
+<th style="text-align:right;">
+q75
+</th>
+<th style="text-align:right;">
+max
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+35
+</td>
+<td style="text-align:right;">
+58.1
+</td>
+<td style="text-align:right;">
+31.8
+</td>
+<td style="text-align:right;">
+56
+</td>
+<td style="text-align:right;">
+77
+</td>
+<td style="text-align:right;">
+174
+</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
 # Event distribution per cluster
 # kable(
 #   addmargins(
@@ -551,38 +555,102 @@ kable(q_surv[1, ]) %>%
     c(" " = 1,
       "Time quantile" = 3))
 ```
-  
+
+</details>
+<img src="imgs/KMcurves-1.png" width="672" style="display: block; margin: auto;" />
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="1">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="3">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+Time quantile
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+</th>
+<th style="text-align:right;">
+25
+</th>
+<th style="text-align:right;">
+50
+</th>
+<th style="text-align:right;">
+75
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Overall
+</td>
+<td style="text-align:right;">
+52
+</td>
+<td style="text-align:right;">
+91
+</td>
+<td style="text-align:right;">
+150
+</td>
+</tr>
+</tbody>
+</table>
+
 ### **2. Analysis**
 
-We provide the accuracy of predictions from the stratified and the shared gamma frailty Cox proportional hazards models in two scenarios
+We provide the accuracy of predictions from the stratified and the
+shared gamma frailty Cox proportional hazards models in two scenarios
 
-+ Small cluster scenario: it includes herds with less than 50 cows  
-+ Large cluster scenario: it includes herds with at least 50 cows  
+- Small cluster scenario: it includes herds with less than 50 cows  
+- Large cluster scenario: it includes herds with at least 50 cows
 
-The accuracy of predictions are evaluated in terms of:  
+The accuracy of predictions are evaluated in terms of:
 
-+ Discrimination using time-varying AUC  
-+ Calibration using O/E ratio, integrated calibration index (ICI), E50 and E90  
-+ Overall performance using time-varying Index of Prediction Accuracy (IPA)  
+- Discrimination using time-varying AUC  
+- Calibration using O/E ratio, integrated calibration index (ICI), E50
+  and E90  
+- Overall performance using time-varying Index of Prediction Accuracy
+  (IPA)
 
 We use the Monte Carlo cross-validation procedure to assess prediction
-performances of the stratified and frailty Cox model.  
+performances of the stratified and frailty Cox model.
 
-+ The sample was split into two parts to define derivation (70%) and validation samples (30%)  
-+ The 70/30% random splits are repeated 100 times  
-+ The repeated random splits are stratified by herds(i.e., the cluster) to obtain the same herds in both the derivation and validation samples  
+- The sample was split into two parts to define derivation (70%) and
+  validation samples (30%)  
+- The 70/30% random splits are repeated 100 times  
+- The repeated random splits are stratified by herds(i.e., the cluster)
+  to obtain the same herds in both the derivation and validation samples
 
-We excluded herds with less than 10 cows since it was not possible to obtain sufficient cows in both derivation and validation sample.
+We excluded herds with less than 10 cows since it was not possible to
+obtain sufficient cows in both derivation and validation sample.
 
-  
-The mean of the performances metrics across the 100 random validation samples with the corresponding standard deviation are reported for each scenario and at each prediction time horizon to assess the prediction performances of the stratified and the frailty Cox models.
+The mean of the performances metrics across the 100 random validation
+samples with the corresponding standard deviation are reported for each
+scenario and at each prediction time horizon to assess the prediction
+performances of the stratified and the frailty Cox models.
 
-The fixed time horizons are defined based on the $25^{th}$, $50^{th}$ and $75^{th}$ quantile fo event time overall distribution using the Kaplan-Meier distribution which corresponds to 51, 91, 150 days, respectively.  
+The fixed time horizons are defined based on the $25^{th}$, $50^{th}$
+and $75^{th}$ quantile fo event time overall distribution using the
+Kaplan-Meier distribution which corresponds to 51, 91, 150 days,
+respectively.
 
 #### **2.1 Small cluster size**
 
-```{r, cross_val_small, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+<details>
+<summary>
+Click to expand code
+</summary>
 
+``` r
 # time horizons
 time_hors <- c(52, 91, 150)
 
@@ -913,8 +981,17 @@ df_tbl_insem <-
 # tictoc::toc()
 ```
 
+</details>
+<details>
+<summary>
+Click to expand code
+</summary>
 
-```{r, res_small, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+``` r
+# NOTE: for long time computation we saved the results directly
+# However, one can remove comments for the above code to 
+# reproduce exactly the same results
+
 # Aggregating results
 # 
 # # Discrimination
@@ -1090,9 +1167,373 @@ kable(df_MC_performances_small_res) %>%
     c("Small cluster scenario" = 15))
 ```
 
+</details>
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="15">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+Small cluster scenario
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="3">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+AUC
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+IPA
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+O-E ratio
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+ICI
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+E50
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+E90
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+model
+</th>
+<th style="text-align:right;">
+times
+</th>
+<th style="text-align:right;">
+pct_comp
+</th>
+<th style="text-align:right;">
+AUC_mean
+</th>
+<th style="text-align:right;">
+AUC_sd
+</th>
+<th style="text-align:right;">
+IPA_mean
+</th>
+<th style="text-align:right;">
+IPA_sd
+</th>
+<th style="text-align:right;">
+OE_ratio_mean
+</th>
+<th style="text-align:right;">
+OE_ratio_sd
+</th>
+<th style="text-align:right;">
+ICI_mean
+</th>
+<th style="text-align:right;">
+ICI_sd
+</th>
+<th style="text-align:right;">
+E50_mean
+</th>
+<th style="text-align:right;">
+E50_sd
+</th>
+<th style="text-align:right;">
+E90_mean
+</th>
+<th style="text-align:right;">
+E90_sd
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+52
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.688
+</td>
+<td style="text-align:right;">
+0.015
+</td>
+<td style="text-align:right;">
+0.075
+</td>
+<td style="text-align:right;">
+0.016
+</td>
+<td style="text-align:right;">
+1.066
+</td>
+<td style="text-align:right;">
+0.074
+</td>
+<td style="text-align:right;">
+0.045
+</td>
+<td style="text-align:right;">
+0.032
+</td>
+<td style="text-align:right;">
+0.046
+</td>
+<td style="text-align:right;">
+0.035
+</td>
+<td style="text-align:right;">
+0.070
+</td>
+<td style="text-align:right;">
+0.035
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+strat
+</td>
+<td style="text-align:right;">
+52
+</td>
+<td style="text-align:right;">
+95
+</td>
+<td style="text-align:right;">
+0.658
+</td>
+<td style="text-align:right;">
+0.015
+</td>
+<td style="text-align:right;">
+0.039
+</td>
+<td style="text-align:right;">
+0.021
+</td>
+<td style="text-align:right;">
+1.024
+</td>
+<td style="text-align:right;">
+0.087
+</td>
+<td style="text-align:right;">
+0.037
+</td>
+<td style="text-align:right;">
+0.011
+</td>
+<td style="text-align:right;">
+0.032
+</td>
+<td style="text-align:right;">
+0.013
+</td>
+<td style="text-align:right;">
+0.071
+</td>
+<td style="text-align:right;">
+0.013
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+91
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.730
+</td>
+<td style="text-align:right;">
+0.016
+</td>
+<td style="text-align:right;">
+0.156
+</td>
+<td style="text-align:right;">
+0.023
+</td>
+<td style="text-align:right;">
+1.072
+</td>
+<td style="text-align:right;">
+0.071
+</td>
+<td style="text-align:right;">
+0.044
+</td>
+<td style="text-align:right;">
+0.028
+</td>
+<td style="text-align:right;">
+0.045
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+<td style="text-align:right;">
+0.070
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+strat
+</td>
+<td style="text-align:right;">
+91
+</td>
+<td style="text-align:right;">
+78
+</td>
+<td style="text-align:right;">
+0.723
+</td>
+<td style="text-align:right;">
+0.016
+</td>
+<td style="text-align:right;">
+0.146
+</td>
+<td style="text-align:right;">
+0.026
+</td>
+<td style="text-align:right;">
+1.023
+</td>
+<td style="text-align:right;">
+0.045
+</td>
+<td style="text-align:right;">
+0.037
+</td>
+<td style="text-align:right;">
+0.014
+</td>
+<td style="text-align:right;">
+0.033
+</td>
+<td style="text-align:right;">
+0.014
+</td>
+<td style="text-align:right;">
+0.064
+</td>
+<td style="text-align:right;">
+0.014
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+150
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.813
+</td>
+<td style="text-align:right;">
+0.016
+</td>
+<td style="text-align:right;">
+0.229
+</td>
+<td style="text-align:right;">
+0.038
+</td>
+<td style="text-align:right;">
+1.058
+</td>
+<td style="text-align:right;">
+0.081
+</td>
+<td style="text-align:right;">
+0.045
+</td>
+<td style="text-align:right;">
+0.027
+</td>
+<td style="text-align:right;">
+0.047
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+<td style="text-align:right;">
+0.068
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+</tr>
+</tbody>
+</table>
+
 #### **2.2 Large cluster size**
 
-```{r, cross_val_large, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
 # time horizons
 time_hors <- c(52, 91, 150)
 
@@ -1418,7 +1859,17 @@ df_tbl_insem <-
 # tictoc::toc()
 ```
 
-```{r, res_large, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+</details>
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
+# NOTE: for long time computation we saved the results directly
+# However, one can remove comments for the above code to 
+# reproduce exactly the same results
+
 # # Aggregating results
 # 
 # # Discrimination
@@ -1594,14 +2045,380 @@ kable(df_MC_performances_large_res) %>%
     c("Large cluster scenario" = 15))
 ```
 
+</details>
+<table class="table table-striped" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="15">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+Large cluster scenario
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="empty-cells: hide;border-bottom:hidden;" colspan="3">
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+AUC
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+IPA
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+O-E ratio
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+ICI
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+E50
+
+</div>
+
+</th>
+<th style="border-bottom:hidden;padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+
+E90
+
+</div>
+
+</th>
+</tr>
+<tr>
+<th style="text-align:left;">
+model
+</th>
+<th style="text-align:right;">
+times
+</th>
+<th style="text-align:right;">
+pct_comp
+</th>
+<th style="text-align:right;">
+AUC_mean
+</th>
+<th style="text-align:right;">
+AUC_sd
+</th>
+<th style="text-align:right;">
+IPA_mean
+</th>
+<th style="text-align:right;">
+IPA_sd
+</th>
+<th style="text-align:right;">
+OE_ratio_mean
+</th>
+<th style="text-align:right;">
+OE_ratio_sd
+</th>
+<th style="text-align:right;">
+ICI_mean
+</th>
+<th style="text-align:right;">
+ICI_sd
+</th>
+<th style="text-align:right;">
+E50_mean
+</th>
+<th style="text-align:right;">
+E50_sd
+</th>
+<th style="text-align:right;">
+E90_mean
+</th>
+<th style="text-align:right;">
+E90_sd
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+52
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.670
+</td>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.067
+</td>
+<td style="text-align:right;">
+0.009
+</td>
+<td style="text-align:right;">
+1.101
+</td>
+<td style="text-align:right;">
+0.037
+</td>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.030
+</td>
+<td style="text-align:right;">
+0.053
+</td>
+<td style="text-align:right;">
+0.031
+</td>
+<td style="text-align:right;">
+0.066
+</td>
+<td style="text-align:right;">
+0.040
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+strat
+</td>
+<td style="text-align:right;">
+52
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.656
+</td>
+<td style="text-align:right;">
+0.009
+</td>
+<td style="text-align:right;">
+0.055
+</td>
+<td style="text-align:right;">
+0.009
+</td>
+<td style="text-align:right;">
+1.015
+</td>
+<td style="text-align:right;">
+0.045
+</td>
+<td style="text-align:right;">
+0.026
+</td>
+<td style="text-align:right;">
+0.047
+</td>
+<td style="text-align:right;">
+0.023
+</td>
+<td style="text-align:right;">
+0.039
+</td>
+<td style="text-align:right;">
+0.048
+</td>
+<td style="text-align:right;">
+0.087
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+91
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.706
+</td>
+<td style="text-align:right;">
+0.008
+</td>
+<td style="text-align:right;">
+0.122
+</td>
+<td style="text-align:right;">
+0.011
+</td>
+<td style="text-align:right;">
+1.097
+</td>
+<td style="text-align:right;">
+0.042
+</td>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.032
+</td>
+<td style="text-align:right;">
+0.052
+</td>
+<td style="text-align:right;">
+0.032
+</td>
+<td style="text-align:right;">
+0.066
+</td>
+<td style="text-align:right;">
+0.049
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+strat
+</td>
+<td style="text-align:right;">
+91
+</td>
+<td style="text-align:right;">
+97
+</td>
+<td style="text-align:right;">
+0.701
+</td>
+<td style="text-align:right;">
+0.008
+</td>
+<td style="text-align:right;">
+0.124
+</td>
+<td style="text-align:right;">
+0.011
+</td>
+<td style="text-align:right;">
+1.011
+</td>
+<td style="text-align:right;">
+0.024
+</td>
+<td style="text-align:right;">
+0.020
+</td>
+<td style="text-align:right;">
+0.009
+</td>
+<td style="text-align:right;">
+0.019
+</td>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.036
+</td>
+<td style="text-align:right;">
+0.018
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+frail
+</td>
+<td style="text-align:right;">
+150
+</td>
+<td style="text-align:right;">
+100
+</td>
+<td style="text-align:right;">
+0.776
+</td>
+<td style="text-align:right;">
+0.010
+</td>
+<td style="text-align:right;">
+0.162
+</td>
+<td style="text-align:right;">
+0.022
+</td>
+<td style="text-align:right;">
+1.095
+</td>
+<td style="text-align:right;">
+0.040
+</td>
+<td style="text-align:right;">
+0.048
+</td>
+<td style="text-align:right;">
+0.035
+</td>
+<td style="text-align:right;">
+0.050
+</td>
+<td style="text-align:right;">
+0.031
+</td>
+<td style="text-align:right;">
+0.067
+</td>
+<td style="text-align:right;">
+0.067
+</td>
+</tr>
+</tbody>
+</table>
 
 ### **3. Additional investigations**
-We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting.
 
-We provide the corresponding plots of predictions at different time horizons from the stratified versus frailty model in the small and large cluster scenario.   
+We additionally estimate predictions from the stratified and the shared
+gamma frailty Cox model using all data without splitting.
 
-```{r, additional, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center', fig.width=7, fig.height=7}
+We provide the corresponding plots of predictions at different time
+horizons from the stratified versus frailty model in the small and large
+cluster scenario.
 
+<details>
+<summary>
+Click to expand code
+</summary>
+
+``` r
 # Herds < 50 (herds >= 10)
 table_insem_small <-
   insem %>%
@@ -1818,13 +2635,90 @@ abline(a = 0,
        b = 1,
        lwd = 2,
        col = "red")
-
 ```
 
-NOTE: comparisons only among clusters where predictions were possible for both models
+</details>
 
+<img src="imgs/additional-1.png" width="672" style="display: block; margin: auto;" />
+
+NOTE: comparisons only among clusters where predictions were possible
+for both models
 
 ### **Reproducibility ticket**
-```{r repro_ticket, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
+
+``` r
 sessionInfo()
 ```
+
+    ## R version 4.3.3 (2024-02-29 ucrt)
+    ## Platform: x86_64-w64-mingw32/x64 (64-bit)
+    ## Running under: Windows 10 x64 (build 19045)
+    ## 
+    ## Matrix products: default
+    ## 
+    ## 
+    ## locale:
+    ## [1] LC_COLLATE=English_United Kingdom.utf8 
+    ## [2] LC_CTYPE=English_United Kingdom.utf8   
+    ## [3] LC_MONETARY=English_United Kingdom.utf8
+    ## [4] LC_NUMERIC=C                           
+    ## [5] LC_TIME=English_United Kingdom.utf8    
+    ## 
+    ## time zone: Europe/Rome
+    ## tzcode source: internal
+    ## 
+    ## attached base packages:
+    ## [1] grid      stats     graphics  grDevices utils     datasets  methods  
+    ## [8] base     
+    ## 
+    ## other attached packages:
+    ##  [1] parfm_2.7.8               optimx_2025-4.9          
+    ##  [3] survival_3.8-3            webshot2_0.1.2           
+    ##  [5] rms_6.8-0                 patchwork_1.2.0          
+    ##  [7] ggpubr_0.6.0              webshot_0.5.5            
+    ##  [9] gridExtra_2.3             lubridate_1.9.4          
+    ## [11] forcats_1.0.0             dplyr_1.1.4              
+    ## [13] purrr_1.0.2               readr_2.1.5              
+    ## [15] tidyr_1.3.1               tibble_3.2.1             
+    ## [17] ggplot2_3.5.2             tidyverse_2.0.0          
+    ## [19] gtsummary_1.7.2           polspline_1.1.25         
+    ## [21] riskRegression_2025.05.20 lattice_0.22-5           
+    ## [23] Hmisc_5.2-3               kableExtra_1.4.0         
+    ## [25] knitr_1.50                stringr_1.5.1            
+    ## [27] rio_1.2.3                 pacman_0.5.1             
+    ## 
+    ## loaded via a namespace (and not attached):
+    ##   [1] mnormt_2.1.1         sandwich_3.1-1       rlang_1.1.6         
+    ##   [4] magrittr_2.0.3       multcomp_1.4-28      compiler_4.3.3      
+    ##   [7] systemfonts_1.2.3    vctrs_0.6.5          quantreg_6.1        
+    ##  [10] pkgconfig_2.0.3      shape_1.4.6.1        fastmap_1.2.0       
+    ##  [13] backports_1.5.0      promises_1.3.2       rmarkdown_2.29      
+    ##  [16] pracma_2.4.4         prodlim_2025.04.28   tzdb_0.5.0          
+    ##  [19] nloptr_2.2.1         ps_1.9.1             MatrixModels_0.5-4  
+    ##  [22] xfun_0.52            glmnet_4.1-10        jsonlite_1.8.9      
+    ##  [25] later_1.4.2          timereg_2.0.6        broom_1.0.9         
+    ##  [28] parallel_4.3.3       cluster_2.1.8.1      R6_2.6.1            
+    ##  [31] stringi_1.8.4        RColorBrewer_1.1-3   parallelly_1.45.1   
+    ##  [34] car_3.1-3            rpart_4.1.24         numDeriv_2016.8-1.1 
+    ##  [37] Rcpp_1.1.0           iterators_1.0.14     future.apply_1.20.0 
+    ##  [40] zoo_1.8-14           base64enc_0.1-3      Matrix_1.6-5        
+    ##  [43] splines_4.3.3        nnet_7.3-20          timechange_0.3.0    
+    ##  [46] tidyselect_1.2.1     abind_1.4-8          rstudioapi_0.17.1   
+    ##  [49] yaml_2.3.10          websocket_1.4.2      codetools_0.2-20    
+    ##  [52] processx_3.8.6       listenv_0.9.1        withr_3.0.2         
+    ##  [55] evaluate_1.0.4       foreign_0.8-90       future_1.67.0       
+    ##  [58] xml2_1.3.6           pillar_1.11.0        carData_3.0-5       
+    ##  [61] stats4_4.3.3         checkmate_2.3.2      foreach_1.5.2       
+    ##  [64] sn_2.1.1             generics_0.1.4       rprojroot_2.1.0     
+    ##  [67] chromote_0.5.1       hms_1.1.3            scales_1.4.0        
+    ##  [70] globals_0.18.0       glue_1.7.0           tools_4.3.3         
+    ##  [73] data.table_1.16.2    SparseM_1.84-2       ggsignif_0.6.4      
+    ##  [76] mvtnorm_1.3-3        pec_2025.06.24       colorspace_2.1-1    
+    ##  [79] nlme_3.1-164         htmlTable_2.4.3      Formula_1.2-5       
+    ##  [82] cli_3.6.2            expm_1.0-0           broom.helpers_1.15.0
+    ##  [85] viridisLite_0.4.2    svglite_2.1.3        lava_1.8.1          
+    ##  [88] mets_1.3.5           gt_1.0.0             gtable_0.3.6        
+    ##  [91] rstatix_0.7.2        digest_0.6.35        msm_1.8.2           
+    ##  [94] TH.data_1.1-3        htmlwidgets_1.6.4    farver_2.1.2        
+    ##  [97] htmltools_0.5.8.1    cmprsk_2.2-12        lifecycle_1.0.4     
+    ## [100] here_1.0.1           MASS_7.3-60.0.1

@@ -2,7 +2,10 @@
 title: The impact of the size and the number of clusters on prediction performance
   of the stratified and the conditional shared gamma frailty Cox proportional hazards
   models
-author: "Daniele Giardiello, Edoardo Ratti, Peter C. Austin"
+author: 
+  - Daniele Giardiello^[University of Milan-Bicocca, daniele.giardiello1@gmail.com]  
+  - Edoardo Ratti^[University of Milan-Bicocca]  
+  - Peter C. Austin^[ICES]
 output:
   pdf_document:
     toc: true
@@ -600,14 +603,14 @@ insem_ref <-
 
 
 # Herds >= 50 cows
-table_insem_50 <-
+table_insem_small <-
   insem_ref %>%
   dplyr::count(Herd) %>%
   dplyr::filter(n < 50 & n >= 10)
 
 df_insem_small <- 
   insem_ref %>%
-  dplyr::filter(Herd %in% table_insem_50$Herd)
+  dplyr::filter(Herd %in% table_insem_small$Herd)
 
 # Repeat B times
 B <- 110
