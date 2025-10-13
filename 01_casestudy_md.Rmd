@@ -39,6 +39,7 @@ $$S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+u_j}] =
   where
     
   $$Z_j \sim \Gamma(\theta, \theta)$$
+  
  and 
   
   $$u_j = log(Z_j)$$
