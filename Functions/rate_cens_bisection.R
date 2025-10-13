@@ -75,6 +75,8 @@ rate_cens_bisection <- function(
     "cens_empirical" = prop.cens.empirical)
   
   res_rate <- round(res_rate, dgt)
+  res_rate$final_rate <- max(res_rate$final_rate,
+                             .Machine$double.eps)
   
   # Generate output
   # Censoring with the specified rate

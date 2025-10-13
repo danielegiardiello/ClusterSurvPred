@@ -11,7 +11,7 @@
 
 <meta name="author" content="Daniele Giardiello, Edoardo Ratti, Peter C. Austin" />
 
-<meta name="date" content="2025-10-07" />
+<meta name="date" content="2025-10-13" />
 
 <title>The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models</title>
 
@@ -1797,7 +1797,7 @@ shared gamma frailty Cox proportional hazards models</h1>
 <h3 class="subtitle">R code for the illustrative case study</h3>
 <h4 class="author">Daniele Giardiello, Edoardo Ratti, Peter C.
 Austin</h4>
-<h4 class="date">2025-10-07</h4>
+<h4 class="date">2025-10-13</h4>
 
 </div>
 
@@ -1819,26 +1819,25 @@ models</strong></h3>
 <ul>
 <li><p>Conditional: predictions given the frailty/random effects<br />
 For the shared gamma frailty:<br />
-<span class="math display">\[S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] =
-exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] =
-exp[-H(t)e^{u_i}]\]</span></p>
-<p>where <span class="math display">\[Z_i \sim \Gamma(\theta,
-\theta)\]</span></p></li>
-</ul>
-<p>For details see the book written by David Collett Modelling Survival
-Data in Medical Research, <span class="math inline">\(4^{th}\)</span>
-edition, Chapter 10 (10.2.1-10.3), 306-307. <a href="https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW">book
-link</a></p>
-<ul>
-<li>Marginal: integrating over frailty/random effects<br />
+<span class="math display">\[S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)]
+= exp[-H_0(t)e^{x_{ij}\beta+u_j}] = exp[-z_jH(t)] =
+exp[-H(t)e^{u_j}]\]</span></p>
+<p>where <span class="math display">\[Z_j \sim \Gamma(\theta,
+\theta)\]</span> and</p>
+<p><span class="math display">\[u_j = log(Z_j)\]</span> For details see
+the book written by David Collett Modelling Survival Data in Medical
+Research, <span class="math inline">\(4^{th}\)</span> edition, Chapter
+10 (10.2.1-10.3), 306-307. <a href="https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW">book
+link</a></p></li>
+<li><p>Marginal: integrating over frailty/random effects<br />
 For the shared gamma frailty the marginal predictions may be used when
 the new individual does not belong to any cluster used to develop the
 model or to estimate predictions integrating over all frailty
 Conditional predictions can be used when the new individual belongs to a
-cluster used to develop the model.</li>
+cluster used to develop the model.</p></li>
 </ul>
 <p><span class="math display">\[S^*_i(t) = [1 + \theta^{-1}e^{\beta
-x_i}H_0(t)]^{-\theta}\]</span></p>
+x_{ij}}H_0(t)]^{-\theta}\]</span></p>
 </div>
 <div id="load-packages" class="section level3">
 <h3><strong>Load packages</strong></h3>

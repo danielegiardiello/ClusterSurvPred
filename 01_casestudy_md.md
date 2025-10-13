@@ -36,11 +36,13 @@ Two type of predictions may be possible using frailty:
 - Conditional: predictions given the frailty/random effects  
   For the shared gamma frailty:
 
-$$S_i(t) = exp[-z_ie^{x_i\beta}H_o(t)] = exp[-H_0(t)e^{x_i\beta+u_i}] = exp[-z_iH(t)] = exp[-H(t)e^{u_i}]$$
+$$S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+u_j}] = exp[-z_jH(t)] = exp[-H(t)e^{u_j}]$$
 
 where
 
-$$Z_i \sim \Gamma(\theta, \theta)$$
+$$Z_j \sim \Gamma(\theta, \theta)$$ and
+
+$$u_j = log(Z_j)$$
 
 For details see the book written by David Collett Modelling Survival
 Data in Medical Research, $4^{th}$ edition, Chapter 10 (10.2.1-10.3),
@@ -54,7 +56,7 @@ link](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Coll
   Conditional predictions can be used when the new individual belongs to
   a cluster used to develop the model.
 
-$$S^*_i(t) = [1 + \theta^{-1}e^{\beta x_i}H_0(t)]^{-\theta}$$
+$$S^*_i(t) = [1 + \theta^{-1}e^{\beta x_{ij}}H_0(t)]^{-\theta}$$
 
 ### **Load packages**
 
