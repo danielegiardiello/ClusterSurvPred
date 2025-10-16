@@ -5,25 +5,9 @@
 **Authors**: Daniele Giardiello, Edoardo Ratti, Peter C. Austin
 
 ## Abstract
-Researchers in biomedical research often analyse data that are subject to clustering.
-Independence among observations are generally assumed to develop and validate risk
-prediction models. For survival outcomes, the Cox proportional hazards regression model
-is commonly used to estimate individual’s risk at fixed time horizons. The stratified Cox
-proportional hazards and the shared gamma frailty Cox proportional hazards regression
-models are two common approaches to account for the presence of clustering in the data.
-The accuracy of the predictions of these two approaches has not been examined. We
-conducted a set of Monte Carlo simulations to assess the impact of the cluster size,
-number of clusters, and the within-cluster correlation on the accuracy of the conditional
-predictions developed using the stratified and the shared gamma frailty Cox proportional
-hazards regression model. We compared the accuracy of the predictions in terms of
-discrimination, calibration and overall performance metrics. We found that the stratified
-and the shared gamma frailty model provided similar performances especially for larger
-size and higher number of clusters. For small cluster size, simulations suggested slightly
-better discrimination and overall performance for the stratified model and slightly better
-calibration for the shared gamma frailty model at short time horizons. However, the
-practical applicability of the stratified Cox proportional hazards model to estimate
-predictions is limited especially for high within-cluster correlation and when clusters are
-small, and more likely at longer time prediction horizons.
+Researchers in biomedical research often analyse data that are subject to clustering. Independence among observations are generally assumed to develop and validate risk prediction models. For survival outcomes, the Cox proportional hazards regression model is commonly used to estimate an individual’s risk at fixed time horizons. The stratified Cox proportional hazards and the shared gamma frailty Cox proportional hazards regression models are two common approaches to account for the presence of clustering in the data. The accuracy of the predictions of these two approaches has not been examined. We conducted a set of Monte Carlo simulations to assess the impact of the number of clusters, the size of the clusters, and the within-cluster correlation in outcomes on the accuracy of the conditional predictions developed using the stratified and the shared gamma frailty Cox proportional hazards regression model. We compared the accuracy of the predictions in terms of discrimination, calibration and overall performance metrics. We found that the stratified and the shared gamma frailty model provided similar performance, especially for larger size and higher number of clusters. For small cluster size, we observed slightly better discrimination and overall performance for the stratified model and better calibration for the shared gamma frailty model at shorter prediction horizons. However, the practical applicability of the stratified Cox proportional hazards model to estimate predictions is limited especially for high within-cluster correlation and when clusters are small, and more likely at longer time prediction horizons.
+
+
 
 
 ## Usage
