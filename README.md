@@ -1,6 +1,6 @@
 
 
-# The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models
+# The impact of the number and the size of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models
 
 **Authors**: Daniele Giardiello, Edoardo Ratti, Peter C. Austin
 
