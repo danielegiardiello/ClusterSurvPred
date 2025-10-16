@@ -1,12 +1,11 @@
-The impact of the size and the number of clusters on prediction
+The impact of the number and the size of clusters on prediction
 performance of the stratified and the conditional shared gamma frailty
 Cox proportional hazards models
 ================
 Daniele Giardiello, Edoardo Ratti, Peter C. Austin
 
 - [**Overview**](#overview)
-- [**Recap of predictions from shared gamma frailty Cox
-  models**](#recap-of-predictions-from-shared-gamma-frailty-cox-models)
+- [**Some useful notations**](#some-useful-notations)
 - [**Load packages**](#load-packages)
 - [**Import useful functions**](#import-useful-functions)
 - [**Import data**](#import-data)
@@ -29,14 +28,14 @@ described by the book of Duchateau and Janssen [The Frailty
 Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008)
 (example 1.8)
 
-### **Recap of predictions from shared gamma frailty Cox models**
+### **Some useful notations**
 
 Two type of predictions may be possible using frailty:
 
 - Conditional: predictions given the frailty/random effects  
   For the shared gamma frailty:
 
-$$S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+u_j}] = exp[-z_jH(t)] = exp[-H(t)e^{u_j}]$$
+$$S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+\mu_j}] = exp[-z_jH(t)] = exp[-H(t)e^{\mu_j}]$$
 
 where
 
@@ -44,8 +43,8 @@ $$Z_j \sim \Gamma(\theta, \theta)$$
 
 and
 
-$$u_j = log(Z_j)$$
-
+$$\mu_j = log(Z_j)$$ where $i = 1,..., n_{j}$ represents the $i^{th}$
+subject and $j = 1,...,N$ represents the $j^{th}$ cluster.  
 For details see the book written by David Collett Modelling Survival
 Data in Medical Research, $4^{th}$ edition, Chapter 10 (10.2.1-10.3),
 306-307. [book
@@ -2417,11 +2416,12 @@ frail
 ### **3. Additional investigations**
 
 We additionally estimate predictions from the stratified and the shared
-gamma frailty Cox model using all data without splitting.
+gamma frailty Cox model using all data without splitting among clusters
+in which predictions were possible in both models.
 
 We provide the corresponding plots of predictions at different time
-horizons from the stratified versus frailty model in the small and large
-cluster scenario.
+horizons from the stratified versus the shared gamma frailty model in
+the small and large cluster scenario.
 
 <details>
 <summary>
