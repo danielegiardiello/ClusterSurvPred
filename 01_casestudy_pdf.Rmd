@@ -3,7 +3,7 @@ title: The impact of the number and the size of clusters on prediction performan
 author: 
   - Daniele Giardiello^[University of Milan-Bicocca, daniele.giardiello1@gmail.com]  
   - Edoardo Ratti^[University of Milan-Bicocca]  
-  - Peter C. Austin^[ICES]
+  - Peter C. Austin^[Institute for Clinical Evaluative Sciences, ICES]
 output:
   pdf_document:
     toc: true
