@@ -45,10 +45,17 @@ and
 
 $$\mu_j = log(Z_j)$$ where $i = 1,..., n_{j}$ represents the $i^{th}$
 subject and $j = 1,...,N$ represents the $j^{th}$ cluster.  
-For details see the book written by David Collett Modelling Survival
-Data in Medical Research, $4^{th}$ edition, Chapter 10 (10.2.1-10.3),
-306-307. [book
-link](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW)
+The measure of within-cluster correlation is Kendall’s $\tau$. For the
+shared gamma frailty model, $\tau = \sigma^2/(\sigma^2+2)$ where
+$\sigma^2$ is the variance of $Z_{j}$. The higher is the variance, the
+higher within-cluster correlation (i.e., homogeneity). Note that
+$Z_j \sim \Gamma(\theta, \theta)$ then the variance is
+$\sigma^2 = 1/\theta$ then $\tau = 1/(\theta+2)$. For details see
+Hougaard *Analysis of Multivariate Survival Data (chapter 4)* [link
+here](https://link.springer.com/book/10.1007/978-1-4612-1304-8), and
+Collett *Modelling Survival Data in Medical Research,
+$4^{th} edition, (chapter 10)$* [link
+here](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW).
 
 - Marginal: integrating over frailty/random effects  
   For the shared gamma frailty the marginal predictions may be used when
