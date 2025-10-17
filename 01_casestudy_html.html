@@ -11,9 +11,9 @@
 
 <meta name="author" content="Daniele Giardiello, Edoardo Ratti, Peter C. Austin" />
 
-<meta name="date" content="2025-10-13" />
+<meta name="date" content="2025-10-17" />
 
-<title>The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models</title>
+<title>The impact of the number and the size of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -1791,13 +1791,13 @@ border-radius: 0px;
 
 
 
-<h1 class="title toc-ignore">The impact of the size and the number of
+<h1 class="title toc-ignore">The impact of the number and the size of
 clusters on prediction performance of the stratified and the conditional
 shared gamma frailty Cox proportional hazards models</h1>
 <h3 class="subtitle">R code for the illustrative case study</h3>
 <h4 class="author">Daniele Giardiello, Edoardo Ratti, Peter C.
 Austin</h4>
-<h4 class="date">2025-10-13</h4>
+<h4 class="date">2025-10-17</h4>
 
 </div>
 
@@ -1812,23 +1812,30 @@ insem data from the R package <a href="https://cran.r-project.org/web/packages/p
 described by the book of Duchateau and Janssen <a href="https://link.springer.com/book/10.1007/978-0-387-72835-3">The
 Frailty Model</a> (2008) (example 1.8)</p>
 </div>
-<div id="recap-of-predictions-from-shared-gamma-frailty-cox-models" class="section level3">
-<h3><strong>Recap of predictions from shared gamma frailty Cox
-models</strong></h3>
+<div id="some-useful-notations" class="section level3">
+<h3><strong>Some useful notations</strong></h3>
 <p>Two type of predictions may be possible using frailty:</p>
 <ul>
 <li><p>Conditional: predictions given the frailty/random effects<br />
 For the shared gamma frailty:<br />
 <span class="math display">\[S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)]
-= exp[-H_0(t)e^{x_{ij}\beta+u_j}] = exp[-z_jH(t)] =
-exp[-H(t)e^{u_j}]\]</span></p>
+= exp[-H_0(t)e^{x_{ij}\beta+\mu_j}] = exp[-z_jH(t)] =
+exp[-H(t)e^{\mu_j}]\]</span></p>
 <p>where <span class="math display">\[Z_j \sim \Gamma(\theta,
 \theta)\]</span> and</p>
-<p><span class="math display">\[u_j = log(Z_j)\]</span> For details see
-the book written by David Collett Modelling Survival Data in Medical
-Research, <span class="math inline">\(4^{th}\)</span> edition, Chapter
-10 (10.2.1-10.3), 306-307. <a href="https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW">book
-link</a></p></li>
+<p><span class="math display">\[\mu_j = log(Z_j)\]</span> where <span class="math inline">\(i = 1,..., n_{j}\)</span> represents the <span class="math inline">\(i^{th}\)</span> subject and <span class="math inline">\(j = 1,...,N\)</span> represents the <span class="math inline">\(j^{th}\)</span> cluster.<br />
+The measure of within-cluster correlation is Kendall’s <span class="math inline">\(\tau\)</span>. For the shared gamma frailty model,
+<span class="math inline">\(\tau = \sigma^2/(\sigma^2+2)\)</span> where
+<span class="math inline">\(\sigma^2\)</span> is the variance <span class="math inline">\(Z_{j}\)</span>. The higher is the variance, the
+higher within-cluster correlation (i.e., homogeneity). Note that <span class="math inline">\(Z_j \sim \Gamma(\theta, \theta)\)</span> then the
+variance is <span class="math inline">\(\sigma^2 = 1/\theta\)</span>
+then <span class="math inline">\(\tau = 1/(\theta+2)\)</span>. For
+details see Hougaard <em>Analysis of Multivariate Survival Data (chapter
+4)</em> <a href="https://link.springer.com/book/10.1007/978-1-4612-1304-8">link
+here</a>, and Collett <em>Modelling Survival Data in Medical Research,
+<span class="math inline">\(4^{th} edition, (chapter 10)\)</span></em>
+<a href="https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW">link
+here</a>.</p></li>
 <li><p>Marginal: integrating over frailty/random effects<br />
 For the shared gamma frailty the marginal predictions may be used when
 the new individual does not belong to any cluster used to develop the
@@ -3890,10 +3897,11 @@ frail
 <div id="additional-investigations" class="section level3">
 <h3><strong>3. Additional investigations</strong></h3>
 <p>We additionally estimate predictions from the stratified and the
-shared gamma frailty Cox model using all data without splitting.</p>
+shared gamma frailty Cox model using all data without splitting among
+clusters in which predictions were possible in both models.</p>
 <p>We provide the corresponding plots of predictions at different time
-horizons from the stratified versus frailty model in the small and large
-cluster scenario.</p>
+horizons from the stratified versus the shared gamma frailty model in
+the small and large cluster scenario.</p>
 <pre class="r"><code># Herds &lt; 50 (herds &gt;= 10)
 table_insem_small &lt;-
   insem %&gt;%
