@@ -53,8 +53,8 @@ $Z_j \sim \Gamma(\theta, \theta)$ then the variance is
 $\sigma^2 = 1/\theta$ then $\tau = 1/(\theta+2)$. For details see
 Hougaard *Analysis of Multivariate Survival Data (chapter 4)* [link
 here](https://link.springer.com/book/10.1007/978-1-4612-1304-8), and
-Collett *Modelling Survival Data in Medical Research,
-$4^{th} edition, (chapter 10)$* [link
+Collett *Modelling Survival Data in Medical Research, Fourth edition,
+(chapter 10)* [link
 here](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW).
 
 - Marginal: integrating over frailty/random effects  
