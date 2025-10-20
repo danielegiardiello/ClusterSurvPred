@@ -6,4 +6,4 @@
   the penalized partial likelihood through the function `survival::coxph`
 
 
-  Suggestions are welcome to improve these functions. 
+  Suggestions to improve these functions are  welcome. 
