@@ -820,7 +820,7 @@ df_tbl_insem <-
     
     pred_frail = purrr::map2(.x = cox_frail,
                              .y = validation,
-                             ~ 1 - predict.coxph.gammafrail.dev(model = .x,
+                             ~ 1 - predict.coxph.gammafrail(model = .x,
                                                             newdata = .y,
                                                             cluster = "Herd",
                                                             times = time_hors)$conditional),
@@ -1373,7 +1373,7 @@ df_tbl_insem <-
     
     pred_frail = purrr::map2(.x = cox_frail,
                              .y = validation,
-                             ~ 1 - predict.coxph.gammafrail.dev(model = .x,
+                             ~ 1 - predict.coxph.gammafrail(model = .x,
                                                             newdata = .y,
                                                             cluster = "Herd",
                                                             times = time_hors)$conditional),
@@ -1895,7 +1895,7 @@ pred_strat_small <- 1 - pec::predictSurvProb(cox_strat_small,
                                              times = time_hors)
 
 # Frailty small
-pred_frail_small <- 1 - predict.coxph.gammafrail.dev(model = cox_frail_small,
+pred_frail_small <- 1 - predict.coxph.gammafrail(model = cox_frail_small,
                                                  newdata = df_insem_small,
                                                  cluster = "Herd",
                                                  times = time_hors)$conditional
@@ -1907,7 +1907,7 @@ pred_strat_large <- 1 - pec::predictSurvProb(cox_strat_large,
                                              times = time_hors)
 
 # Frailty large
-pred_frail_large <- 1 - predict.coxph.gammafrail.dev(model = cox_frail_large,
+pred_frail_large <- 1 - predict.coxph.gammafrail(model = cox_frail_large,
                                                  newdata = df_insem_large,
                                                  cluster = "Herd",
                                                  times = time_hors)$conditional
