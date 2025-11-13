@@ -44,6 +44,7 @@ Code for the illustrative case study:
 ├── Data
 │   └── insem.rds
 ├── Functions
+│   ├── NEWS.md
 │   ├── predict.coxph.gammafrail.R
 │   ├── rate_cens_bisection.R
 │   └── ReadMe.md
