@@ -10,7 +10,6 @@
 
 
 
-
 $$
 \hat{H}_0(t) = \sum_{t_i \le t} \frac{d_i}{\sum_{j \in R_i} \exp\big(x_j^\top \hat{\beta} + \hat{\mu}_{c(j)}\big)}
 $$
@@ -23,9 +22,11 @@ $$
 - $\hat{u}_{c(j)}$ : estimated frailty for cluster $c(j)$  
 
 
-  **NOTES:**
-  - the current function version has not been (yet) neither implemented nor tested for left-truncation, non-linear terms (e.g., splines), stratification terms.
-  - marginal estimated risk predictions are still experimental. We do not advice to use it yet.
+**CURRENT NOTES AND DISCLAIMERS**
+1. The current predict.coxph.gammafrail.R function version has not been (yet) neither implemented nor tested for left-truncation, non-linear terms (e.g., splines), stratification terms.  
+2. The marginal risk predictions estimation of predict.coxph.gammafrail.R is still experimental. We do not advice to use it yet.
+
+**Suggestions to improve this function are welcome**
   
 
 ###  predict.coxph.gammafrail 0.0.9000
