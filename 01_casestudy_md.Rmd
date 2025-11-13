@@ -31,22 +31,19 @@ Two type of predictions may be possible using frailty:
   
 + Conditional: predictions given the frailty/random effects  
   For the shared gamma frailty:  
-    
-$$S_{ij}(t) = exp[-z_je^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+\mu_j}] = exp[-z_jH(t)] = exp[-H(t)e^{\mu_j}]$$
+  $$S_{ij}(t) = exp[-z_ie^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+\mu_j}] = exp[-z_jH(t)] = exp[-H(t)e^{\mu_j}]$$
   
   where
-    
   $$Z_j \sim \Gamma(\theta, \theta)$$
-  
- and 
+  and 
   
   $$\mu_j = log(Z_j)$$
 where $i = 1,..., n_{j}$ represents the $i^{th}$ subject and $j = 1,...,N$ represents the $j^{th}$ cluster.   
 The measure of within-cluster correlation is Kendall's $\tau$. For the shared gamma frailty model, 
 $\tau = \sigma^2/(\sigma^2+2)$ where $\sigma^2$ is the variance of $Z_{j}$. The higher is the variance, the higher within-cluster correlation (i.e., homogeneity). Note that 
 $Z_j \sim \Gamma(\theta, \theta)$ then the variance is $\sigma^2 = 1/\theta$ then $\tau = 1/(\theta+2)$.
-For details see Hougaard *Analysis of Multivariate Survival Data (chapter 4)* [link here](https://link.springer.com/book/10.1007/978-1-4612-1304-8), and Collett  *Modelling Survival Data in Medical Research, Fourth edition, (chapter 10)* [link here](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW).   
-  
+For details see Hougaard *Analysis of Multivariate Survival Data (chapter 4)* [link here](https://link.springer.com/book/10.1007/978-1-4612-1304-8), and Collett  *Modelling Survival Data in Medical Research, $4^{th} edition, (chapter 10)$* [link here](https://www.routledge.com/Modelling-Survival-Data-in-Medical-Research/Collett/p/book/9781032252858?srsltid=AfmBOoo42UNiACd_DKYssyHu1jihtRGMmlOOjDOYl3vCK47gjs4BW1pW).    
+
 
 + Marginal: integrating over frailty/random effects    
   For the shared gamma frailty the marginal predictions may be used when the new individual does not belong to any cluster used to develop the model or to estimate predictions integrating over all frailty 
@@ -61,8 +58,6 @@ $$S^*_i(t) = [1 + \theta^{-1}e^{\beta x_{ij}}H_0(t)]^{-\theta}$$
 
 The following libraries are needed to achieve the following goals, if you have not them installed, please use install.packages('') (e.g. install.packages('survival')) or use the user-friendly approach if you are using RStudio.
 
-<details>
-  <summary>Click to expand code</summary>
 ```{r, wdlib, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
 # Use pacman to check whether packages are installed, if not load
 if (!require("pacman")) install.packages("pacman")
@@ -79,73 +74,379 @@ pacman::p_load(
   polspline,
   gtsummary,
   tidyverse,
-  # furrr,
   grid,
   gridExtra,
   webshot,
+  plotly,
   ggplot2,
   ggpubr,
   patchwork,
   rms,
   webshot2,
-  parfm
+  parfm,
+  frailtyHL
 )
 ```
-</details>
-  
 
 ### **Import useful functions**
 
 We import useful functions
 
-<details>
-  <summary>Click to expand code</summary>
 ```{r, import_functions, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
 
 # Useful functions
 source(here::here("Functions/predict.coxph.gammafrail.R"))
 
-# Other ad-hoc functions
-# Score function with TryCatch
-Score_tryCatch <- function(predictions,
-                           df,
-                           t_hors,
-                           frm) {
-  tryCatch(
+
+#' @description
+#' 
+#' Function to estimate conditional and marginal 
+#' survival probabilities at specified time horizons
+#' for shared Gamma frailty Cox proportional hazards models
+#' 
+#' @author Daniele Giardiello
+#' @param model cox model using survival::coxph including frailty gamma term
+#' The event of interest must have the indicator variable equal to 1.
+#' The model survival::coxph() must specify y = T survival::coxph(..., y = T)
+#' The user must define a reference value
+#' for all predictors, especially the continuous predictors
+#' Example: age50 = age - 50 or age_c = age - mean(age)
+#' Then "the baseline" corresponds to a subject with 
+#' the specified reference predictors values. 
+#' Ties/methods must be "breslow". 
+#' @param newdata newdata (for validation). 
+#' This should have the same variables of the model.
+#' Predictors with levels should be coded 
+#' with exactly the same way and levels of the predictors
+#' with factors used to develop the model
+#' @param cluster cluster variable. Only one variable possible
+#' @param times prediction horizon time(s)
+#' @examples
+#' # example code
+#' data(lung, package = "survival")
+#' lung$age_c <- lung$age - mean(lung$age)
+#' cox_frailty_lung <- survival::coxph(Surv(time, status) ~ age_c + frailty(inst,
+#' distribution = "gamma"), 
+#' data = lung,
+#' x = TRUE,
+#' y = TRUE,
+#' model = TRUE,
+#' ties = "breslow")
+#' predict.coxph.gammafrail(model = cox_frailty_lung,
+#' newdata = lung_sel,
+#' cluster = "inst",
+#' times = c(100, 200, 300))
+#' @references Collett D - Modelling Survival data in Medical Research, 
+#' 4th edition chapter 10 (formula 10.9 and 10.12)
+
+
+# **Disclaimers**
+# 1. The current functions provided the conditional estimated
+# predictions using the shared gamma frailty Cox model using
+# survival::coxph.
+# Left-truncation, non-linear terms and stratification terms
+# have not been implemented and tested yet. 
+
+# 2. Marginal prediction estimation are still
+# experimental. We do not advice to use it yet.
+# Your suggestions to improve the function are kindly and warmly welcome. 
+
+predict.coxph.gammafrail <- function(model,
+                                     newdata,
+                                     cluster,
+                                     times) {
   
-  {
-    sc <- 
-      riskRegression::Score(
-        list("prediction_model" = predictions),
-        data = df,
-        formula = frm,
-        times = t_hors,
-        metrics = "auc",
-        summary = "ipa")
-    
-    # Merge AUC + IPA into a single tidy table
-    score_metrics <-
-      base::merge(
-        sc$AUC$score[, c("model", "times", "AUC")],
-        sc$Brier$score[, c("model", "times", "IPA")],
-        by = c("model", "times"),
-        all = TRUE)
-    
-    score_metrics_models <-
-      score_metrics %>%
-      dplyr::filter(model %nin% c("Null model"))
-    
-    score_metrics_models},
+  # sanity check message warning
+  on.exit(base::message("
+  Sanity check warning: 
+  please center all variables before fitting the model or assign reference values
+                for continuous variable. 
+                For example age50 = age - 50.
+                newdata should contain the centered/referenced values"))
   
-  error = function(msg) {
-         message(paste("Prediction not possible"))
+  # Stopping messages
+  if (!inherits(model, "coxph"))
+    stop("`model` must be a survival::coxph fit. 
+         The model must specify y = T and Breslow method. 
+         Please center all variables before fitting the model or assign reference values
+         for continuous variable. For example age50 = age - 50")
+  
+  if (missing(cluster))
+    stop("Please supply the name of the cluster variable (character).")
+  
+  if (!is.character(cluster) || length(cluster) != 1L)
+    stop("`cluster` must be a single character string giving the cluster column name.")
+  
+  if (!cluster %in% names(newdata))
+    stop("`cluster` not found in `newdata`.")
+  
+  
+  # Start function ----
+  # Step0: 
+  # Formula with all terms including cluster as it is a fixed covariate
+  frm_allterms <- reformulate(base::all.vars(model$formula[[3]]))
+  
+  # Select the complete cases of fixed + frailty terms
+  # of the development data
+  # (same data used to develop the model)
+  # The argument survival::coxph(..., x = T) provides
+  # the development data
+  # NOTE: the development data is necessary to 
+  # estimate the "baseline" (cumulative) hazard H0 later
+  
+  devdata <- stats::model.frame(frm_allterms,
+                                data = base::eval(model$call$data, 
+                                                  envir = environment(formula(model))), 
+                                # NOTE: data.frame(model$x) did not
+                                # provide the same variable names
+                                # (e.g. frailty(id_cluster) instead of id_cluster)
+                                # Alternative: add devdata as a new argument of the
+                                # function. 
+                                # The alternative option is probably the most
+                                # intuitive 
+                                na.action = na.omit) # not sure if necessary but safer
+  
+  
+  # Select only the complete cases of fixed + frailty terms
+  # of the newdata
+  
+  newdata <- stats::model.frame(frm_allterms,
+                                data = newdata,
+                                na.action = na.omit)
+  
+  # Step 1: survfit for
+  # a baseline cumulative hazard / survival
+  
+  # Survfit of the coxph with frailty
+  # sf_model <- survival::survfit(model)
+  
+  # NOTE: the survival::survfit with frailty does not accept newdata
+  # thus, it is important to center all variables or give them a reference.
+  # In this setting survfit$cumhaz will directly represent our baseline 
+
+  # NOTE: [20251029]: survfit() with frailty with no newdata 
+  # seems not to include the frailty terms in the "baseline"
+  # cumulative hazard estimation for a reference subject
+  
+  # Step 1: linear predictors of fixed effects
+  
+  # Estimate linear predictors only
+  # for fixed-effect effects without frailties
+  # This will be also useful later when 
+  # marginal predictions are estimated
+
+  
+  # Since with clusters size < vs >= 5
+  # frailty terms are treated as coefficients or not,
+  # I prefer calculate lp for the only fixed terms only manually
+  
+  # lp calculation for marginal
+  # save all model coefficients
+  # for cluster < 5, frailty terms are included in coefficients (not practical)
+  coefs <- model$coefficients
+  
+  # Remove frailty named "gamma"
+  # NOTE/WARNING: 
+  # if a variables called gamma it must be a problem
+  # to be adjusted
+  coefs_fixed <- coefs[!base::grepl("gamma", names(coefs))]
+  
+  # create formula of fixed terms only
+  terms_vec <- attr(terms(model$formula), 
+                    "term.labels")
+  
+  # Remove specials using grep/grepl
+  # NOTE: working in progress
+  specials <- c("frailty", "strata", "cluster", "offset", "tt")
+  fixed_terms <- terms_vec[!grepl(paste(specials, collapse = "|"), terms_vec)]
+
+  
+  formula_fixed <- stats::reformulate(fixed_terms,
+                                      response = NULL)
+  
+  # create design matrix of fixed term only
+  # of the new data
+  X_fixed <- model.matrix(formula_fixed,
+                          newdata)
+
+  X_fixed <- X_fixed[, colnames(X_fixed) != "(Intercept)"]
+
+  # estimate linear predictor X*beta fixed term only
+  lp_fixed <- X_fixed %*% cbind(coefs_fixed)
+  
+  # this should be equivalent to this (when cluster > 5)
+  # lp_nofrail <- cbind(predict(model,
+  #                             newdata = newdata,
+  #                             type = "lp"))
+  
+  # create design matrix of fixed term only
+  # of the development data
+  # (data used to develop the model)
+  # useful to estimate the "baseline" cumulative hazard
+  X_fixed_dev <- model.matrix(formula_fixed,
+                              devdata)
+  
+  X_fixed_dev <- X_fixed_dev[, colnames(X_fixed_dev) != "(Intercept)"]
+  
+  # estimate linear predictor X*beta fixed term only
+  lp_fixed_dev <- X_fixed_dev %*% cbind(coefs_fixed)
+  
+  
+  # Step 2: linear predictors for frailty terms
+  
+  # NOTE/WARNING:
+  # for cluster < 5 predict.coxph(model, newdata) includes also frailty
+  # and frailty terms must not be included for marginal predictions.
+  # This leads to wrong estimations of marginal predictions 
+  # and the corresponding performance metrics in riskRegression::Score()
+  
+  # For frailty with not model$frail (where clusters < 5)
+  # add the model$frail and keep only fixed-effect coefficients
+  if(is.null(model$frail)) {
+    coefs_model <- model$coefficients
+    model$frail <- unname(coefs_model[base::grep("gamma", names(coefs_model))])
+  }
+  
+  # Force cluster as a factor in the newdata
+  # number of clusters in the newdata 
+  
+  # otherwise a factor
+  # NOTE: for newdata with one cluster, factor does not work
+  # newdata[[cluster]] <- base::as.character(newdata[[cluster]])
+  
+  # newdata 
+   newdata[[cluster]] <- base::factor(newdata[[cluster]],
+                                      levels = unique(newdata[[cluster]]))
+   
+  # development data
+   devdata[[cluster]] <- base::factor(devdata[[cluster]],
+                                      levels = unique(devdata[[cluster]]))
+  
+  # newdata[[cluster]] <- base::factor(newdata[[cluster]],
+  #                                    levels = 1:length(model$frail))
+   
+  # Create the design matrix for frailty terms
+  all_terms <- base::all.vars(model$formula[[3]])
+  frailty_terms <- c(-1, all_terms[all_terms == cluster])
+  
+  # design matrix for the frailty terms
+  # of the new data
+  X_frail <- stats::model.matrix(stats::reformulate(frailty_terms),
+                                 response = NULL,
+                                 data = newdata)
+  
+  # design matrix for the frailty terms
+  # of the development data (data used to develop the model)
+  # useful to estimate the "baseline" cumulative hazard H0
+  X_frail_dev <- stats::model.matrix(stats::reformulate(frailty_terms),
+                                     response = NULL,
+                                     data = devdata)
+  
+  # Frailty terms linear predictors
+  # new data
+  lp_frail <- X_frail %*% cbind(model$frail)
+  
+  # Frailty terms linear predictors
+  # development data
+  lp_frail_dev <- X_frail_dev %*% cbind(model$frail)
+  
+  # Total linear predictor
+  # new data
+  lp_total <- lp_fixed + lp_frail
+  
+  # Total linear predictor
+  # development data
+  lp_total_dev <- lp_fixed_dev + lp_frail_dev
+  
+  # Step 3: 
+  # estimate the "baseline" cumulative hazard
+  # for a reference subject 
+  # NOTE: we use the development data
+  # NOTE: recalibration might be possible using
+  # the linear predictors (lp) of the development data
+  # but the risk setting of the newdata (i.e., validation)
+  # It might be considered as future developments
+  
+  risk_dev <- exp(lp_total_dev) # exp(lp + frailty)
+
+  # Unique event times of the
+  # model fitted using the development data
+  
+  model_times <- model$y[, "time"] # event time for development data
+  model_status <- model$y[, "status"] # event indicator for development data
+  
+  # NOTE: the object model must specify y = T
+  # Example: survival::coxph(..., y = T)
+  # NOTE: status == 1 must be the event of reference
+  
+  # Extract the unique event time
+  # from the development data
+  # used to develop the model
+  unique_event_times <- sort(unique(model_times[model_status == 1]))
+  n_times <- length(unique_event_times)
+  
+  # Initialize vectors
+  h0 <- numeric(n_times)    # incremental baseline hazard
+  d_i <- numeric(n_times)   # number of events at each time
+  
+  for (i in seq_along(unique_event_times)) {
+    t <- unique_event_times[i]
+    d_i[i] <- sum(model_status[model_times == t])
     
-    base::expand.grid(
-      times = t_hors,
-      model = c("prediction_model")) %>%
-      base::transform(AUC = NA_real_, 
-                      IPA = NA_real_)
-  })
+    # Risk set: all individuals still at risk at time t
+    risk_set <- which(model_times >= t)
+    
+    # Breslow baseline hazard
+    h0[i] <- d_i[i] / sum(risk_dev[risk_set])
+  }
+ 
+  # Cumulative "baseline" hazard
+  # Create the sf model
+  H0 <- cumsum(h0)
+  
+  # Cumulative hazards
+  # at fixed time horizons
+  # H_0(t)
+  cumhaz0_thor <- stats::approx(
+    x = unique_event_times,
+    y = H0,
+    yleft = 0, # y values below min(x). Cumulative hazard zero if below min(time)
+    yright = NA, # y values above max(x). Cumulative hazard NA if above max(time)
+    xout = times,
+    method = "constant",
+    f = 0,
+    rule = 1)$y
+  
+  # NOTE: 
+  # stats:approx should work fine since
+  # all values from survival::survfit are unique
+  # for the event time of development data
+  
+  # H(t) using the newdata (i.e., validation data)
+  cumhaz_thor <- exp(lp_total) %*% cumhaz0_thor
+  
+  # conditional S(t)
+  S_cond_t <- exp(-cumhaz_thor)
+  
+  # marginal S(t)
+  # NOTE: marginal predictions needs
+  # to be further investigated
+  # to check if they are corrected
+  # 
+  # NOTE/QUESTION
+  # does the marginal use the baseline hazard including the frailty terms?
+  
+  theta_hat <- model$history[[1]]$theta
+  S_marg_t <- (1 + theta_hat * (exp(lp_fixed) %*% cumhaz0_thor))^(-1/theta_hat)
+  
+  # Output 
+  # NOTE: to be better defined
+  res <- list("conditional" = S_cond_t,
+              "marginal" = S_marg_t)
+  
+  return(res)
+  # Report only conditional predictions
+  # return(S_cond_t)
   
 }
 
@@ -191,32 +492,28 @@ calhaz_map <- function(time,
   
 }
 ```
-</details>
+
 
 ### **Import data**
 
 Insem data can be imported using the `parfm` R package.
 We also saved insem data in our repository in the .rds format.
 
-<details>
-  <summary>Click to expand code</summary>
+
 ```{r, import_data, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
 # Import from the repository
-insem <- readRDS(here::here("Data/insem.rds"))
+# insem <- readRDS(here::here("Data/insem.rds"))
 
 # Import from parf package
 data(insem,
      package = "parfm")
 ```
-</details>
 
 ### **1. Descriptive statistics**
 
 We provide some descriptive statistics of the case study
 
-<details>
-  <summary>Click to expand code</summary>
-```{r, table_01, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
+```{r, descriptives, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
 
 insem_tab_01 <-
   insem %>%
@@ -226,8 +523,10 @@ insem_tab_01 <-
                 Heifer,
                 Status)
 
-label(insem_tab_01$Ureum) <- "Milk urem concentration (%) at the start of the lactation period"
-label(insem_tab_01$Protein) <- "Protein concentration (%) at the start of the lactation period"
+label(insem_tab_01$Ureum) <- "Milk urem concentration (%) at the start of the 
+                              lactation period"
+label(insem_tab_01$Protein) <- "Protein concentration (%) at the start of the 
+                                lactation period"
 label(insem_tab_01$Parity) <- "The number of calvings"
 label(insem_tab_01$Heifer) <- "Primiparous cow"
 label(insem_tab_01$Status) <- "Inseminated cow"
@@ -235,32 +534,24 @@ label(insem_tab_01$Status) <- "Inseminated cow"
 units(insem_tab_01$Ureum) <- "%"
 units(insem_tab_01$Protein) <- "%"
 
-gtsummary::tbl_summary(
-  data = insem_tab_01 ,
-  label = list(Parity ~ "Number of calvings", 
-               Heifer ~ "Primiparous cow", 
-               Ureum ~ "Milk urem concentration (%) ",
-               Protein ~ "Protein concentration (%)",
-               Status ~ "Inseminated cows"),
-  type = all_continuous() ~ "continuous2",
-  statistic = all_continuous() ~ c(
-    "{mean} ({sd})",
-    "{median} ({min}, {max})"
-  ),
-) %>%
-  gtsummary::as_kable_extra() %>%
-  kableExtra::kable_styling("striped",
-                            position = "center") 
+gtsummary_table1 <-
+  gtsummary::tbl_summary(
+    data = insem_tab_01 ,
+    label = list(Parity ~ "Number of calvings", 
+                 Heifer ~ "Primiparous cow", 
+                 Ureum ~ "Milk urem concentration (%) ",
+                 Protein ~ "Protein concentration (%)",
+                 Status ~ "Inseminated cows"),
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({min}, {max})"
+    ),
+  ) 
 
-```
-</details>
+gtsummary_table1 %>%
+  gtsummary::as_gt()
 
-```{r, table_01, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
-
-<details>
-  <summary>Click to expand code</summary>
-```{r, plot_cluster_size, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
 # Cluster size distribution
 table_cluster <-
   insem %>%
@@ -282,15 +573,7 @@ barplot(table(insem$Herd),
 #                             position = "center") %>%
 #     kableExtra::add_header_above(
 #      c("Cluster size distribution" = 2))
-```
-</details>
 
-```{r, plot_cluster_size, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
-
-<details>
-  <summary>Click to expand code</summary>
-```{r, summary_cluster_size, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
 # Summary cluster size
 summary_cluster <-
   table_cluster %>%
@@ -307,16 +590,7 @@ kable(summary_cluster) %>%
   kableExtra::kable_styling("striped") %>%
     kableExtra::add_header_above(
      c("Cluster size statistics" = 7))
-```
-</details>
 
-```{r, summary_cluster_size, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
-
-
-<details>
-  <summary>Click to expand code</summary>
-```{r, KMcurves, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
 # Event distribution per cluster
 # kable(
 #   addmargins(
@@ -359,7 +633,6 @@ lines(sf_overall,
       col = "red",
       conf.int = FALSE)
 
-
 # Time quantiles
 q_overall <- quantile(sf_overall,
                       probs = c(.25, .50, .75))$quantile
@@ -377,11 +650,7 @@ kable(q_surv[1, ]) %>%
     c(" " = 1,
       "Time quantile" = 3))
 ```
-</details>
-
-```{r, KMcurves, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
-
+  
 ### **2. Analysis**
 
 We provide the accuracy of predictions from the stratified and the shared gamma frailty Cox proportional hazards models in two scenarios
@@ -409,10 +678,9 @@ The mean of the performances metrics across the 100 random validation samples wi
 
 The fixed time horizons are defined based on the $25^{th}$, $50^{th}$ and $75^{th}$ quantile fo event time overall distribution using the Kaplan-Meier distribution which corresponds to 51, 91, 150 days, respectively.  
 
+
 #### **2.1 Small cluster size**
 
-<details>
-  <summary>Click to expand code</summary>
 ```{r, cross_val_small, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
 
 # time horizons
@@ -547,7 +815,7 @@ df_tbl_insem <-
     
     pred_frail = purrr::map2(.x = cox_frail,
                              .y = validation,
-                             ~ 1 - predict.coxph.gammafrail(model = .x,
+                             ~ 1 - predict.coxph.gammafrail.dev(model = .x,
                                                             newdata = .y,
                                                             cluster = "Herd",
                                                             times = time_hors)$conditional),
@@ -744,17 +1012,11 @@ df_tbl_insem <-
    
 # tictoc::toc()
 ```
-</details>
 
-<details>
-  <summary>Click to expand code</summary>
-```{r, res_small, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
-# NOTE: for long time computation we saved the results directly
-# However, one can remove comments for the above code to 
-# reproduce exactly the same results
 
+```{r, res_small, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
 # Aggregating results
-# 
+
 # # Discrimination
 # df_frail_discr <-   do.call(rbind, df_tbl_insem$score_frail_res)
 # df_strat_discr <- rbind(do.call(rbind, df_tbl_insem$score_strat_t25),
@@ -762,7 +1024,7 @@ df_tbl_insem <-
 #                         do.call(rbind, df_tbl_insem$score_strat_t75))
 # 
 # # Discrimination stratify + frailty
-# df_discr_res <- 
+# df_discr_res <-
 #   rbind(df_strat_discr,
 #         df_frail_discr) %>%
 #   dplyr::mutate(model = dplyr::case_when(model == "prediction_model" ~ "strat",
@@ -781,46 +1043,46 @@ df_tbl_insem <-
 # # calibration measures results
 # 
 # # calibration measures
-# df_cal_res <- 
+# df_cal_res <-
 #   data.frame(
-#     model = rep(c("strat", "frail"), each = B * length(time_hors)), 
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
 #     times = rep(time_hors, each = B)) %>%
-#   
+# 
 #     dplyr::bind_cols(
 #       rbind(
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t25),
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t50),
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t75),
-#         
+# 
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t25),
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t50),
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t75))) %>%
-#   
+# 
 #   dplyr::rename(ICI = V1,
 #                 E50 = V2,
 #                 E90 = "90%") %>%
-#   
+# 
 #   dplyr::mutate(
 #     model = dplyr::case_when(model == "prediction_model" ~ "strat",
 #                              .default = model))
 # 
 # 
 # # O-E ratio
-# df_oe_res <- 
+# df_oe_res <-
 #   data.frame(
 #     model = rep(c("strat", "frail"), each = B * length(time_hors)),
 #     times = rep(time_hors, times = B)) %>%
-#   
+# 
 #   dplyr::bind_cols(
 #     rbind(
 #      do.call(rbind, lapply(df_tbl_insem$OE_strat, cbind)),
 #      do.call(rbind, lapply(df_tbl_insem$OE_frail, cbind)))) %>%
-#   
+# 
 #   dplyr::rename(
 #     OE_ratio = "...3") %>%
-#   
+# 
 #   dplyr::arrange(desc(model), times)
-#   
+# 
 # 
 # # All measures together
 # 
@@ -833,8 +1095,8 @@ df_tbl_insem <-
 #                      dplyr::select(-model,
 #                                    -times))
 # 
-# # saveRDS(df_performances_small,
-# #         file = here::here("Data/df_perf_casestudy_small.rds"))
+# saveRDS(df_performances_small,
+#         file = here::here("Data/df_perf_casestudy_small.rds"))
 
 df_performances_small <-
   readRDS(file = here::here("Output/df_perf_casestudy_small.rds"))
@@ -913,30 +1175,72 @@ df_MC_performances_small_res <-
     pct_comp = usable_comp)
 
 
-kable(df_MC_performances_small_res) %>%
+df_MC_performances_small_res_discr <-
+  df_MC_performances_small_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd)
+
+df_MC_performances_small_res_OE <-
+  df_MC_performances_small_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                OE_ratio_mean,
+                OE_ratio_sd)
+
+df_MC_performances_small_res_cal <-
+  df_MC_performances_small_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd)
+
+kable(df_MC_performances_small_res_discr) %>%
   kableExtra::kable_styling("striped",
                             position = "center") %>%
     kableExtra::add_header_above(
      c(" " = 3,
        "AUC" = 2,
-       "IPA" = 2,
-       "O-E ratio" = 2,
+       "IPA" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Small cluster scenario" = 7))
+
+
+kable(df_MC_performances_small_res_OE) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
+       "O-E ratio" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Small cluster scenario" = 5))
+
+kable(df_MC_performances_small_res_cal) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
        "ICI" = 2,
        "E50" = 2,
        "E90" = 2)) %>%
   kableExtra::add_header_above(
-    c("Small cluster scenario" = 15))
+    c("Small cluster scenario" = 9))
 ```
-</details>
 
-```{r, res_small, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
 
 
 #### **2.2 Large cluster size**
 
-<details>
-  <summary>Click to expand code</summary>
 ```{r, cross_val_large, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
 # time horizons
 time_hors <- c(52, 91, 150)
@@ -1065,7 +1369,7 @@ df_tbl_insem <-
     
     pred_frail = purrr::map2(.x = cox_frail,
                              .y = validation,
-                             ~ 1 - predict.coxph.gammafrail(model = .x,
+                             ~ 1 - predict.coxph.gammafrail.dev(model = .x,
                                                             newdata = .y,
                                                             cluster = "Herd",
                                                             times = time_hors)$conditional),
@@ -1262,17 +1566,10 @@ df_tbl_insem <-
    
 # tictoc::toc()
 ```
-</details>
 
-<details>
-  <summary>Click to expand code</summary>
-```{r, res_large, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center'}
-# NOTE: for long time computation we saved the results directly
-# However, one can remove comments for the above code to 
-# reproduce exactly the same results
+```{r, res_large, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+# Aggregating results
 
-# # Aggregating results
-# 
 # # Discrimination
 # df_frail_discr <-   do.call(rbind, df_tbl_insem$score_frail_res)
 # df_strat_discr <- rbind(do.call(rbind, df_tbl_insem$score_strat_t25),
@@ -1280,7 +1577,7 @@ df_tbl_insem <-
 #                         do.call(rbind, df_tbl_insem$score_strat_t75))
 # 
 # # Discrimination stratify + frailty
-# df_discr_res <- 
+# df_discr_res <-
 #   rbind(df_strat_discr,
 #         df_frail_discr) %>%
 #   dplyr::mutate(model = dplyr::case_when(model == "prediction_model" ~ "strat",
@@ -1299,50 +1596,50 @@ df_tbl_insem <-
 # # calibration measures results
 # 
 # # calibration measures
-# df_cal_res <- 
+# df_cal_res <-
 #   data.frame(
-#     model = rep(c("strat", "frail"), each = B * length(time_hors)), 
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
 #     times = rep(time_hors, each = B)) %>%
-#   
+# 
 #     dplyr::bind_cols(
 #       rbind(
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t25),
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t50),
 #         do.call(rbind, df_tbl_insem$cal_meas_strat_t75),
-#         
+# 
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t25),
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t50),
 #         do.call(rbind, df_tbl_insem$cal_meas_frail_t75))) %>%
-#   
+# 
 #   dplyr::rename(ICI = V1,
 #                 E50 = V2,
 #                 E90 = "90%") %>%
-#   
+# 
 #   dplyr::mutate(
 #     model = dplyr::case_when(model == "prediction_model" ~ "strat",
 #                              .default = model))
 # 
 # 
 # # O-E ratio
-# df_oe_res <- 
+# df_oe_res <-
 #   data.frame(
 #     model = rep(c("strat", "frail"), each = B * length(time_hors)),
 #     times = rep(time_hors, times = B)) %>%
-#   
+# 
 #   dplyr::bind_cols(
 #     rbind(
 #      do.call(rbind, lapply(df_tbl_insem$OE_strat, cbind)),
 #      do.call(rbind, lapply(df_tbl_insem$OE_frail, cbind)))) %>%
-#   
+# 
 #   dplyr::rename(
 #     OE_ratio = "...3") %>%
-#   
+# 
 #   dplyr::arrange(desc(model), times)
-#   
+# 
 # 
 # # All measures together
 # 
-# df_performances <-
+# df_performances_large <-
 #   df_discr_res %>%
 #   dplyr::bind_cols(df_oe_res %>%
 #                      dplyr::select(-model,
@@ -1350,8 +1647,8 @@ df_tbl_insem <-
 #   dplyr::bind_cols(df_cal_res %>%
 #                      dplyr::select(-model,
 #                                    -times))
-# # saveRDS(df_performances,
-# #         file = here::here("Data/df_perf_casestudy_large.rds"))
+# saveRDS(df_performances_large,
+#         file = here::here("Data/df_perf_casestudy_large.rds"))
 
 df_performances_large <- readRDS(file = here::here("Output/df_perf_casestudy_large.rds"))
 
@@ -1430,34 +1727,73 @@ df_MC_performances_large_res <-
   dplyr::rename(
     pct_comp = usable_comp)
 
+df_MC_performances_large_res_discr <-
+  df_MC_performances_large_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd)
 
-kable(df_MC_performances_large_res) %>%
+df_MC_performances_large_res_OE <-
+  df_MC_performances_large_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                OE_ratio_mean,
+                OE_ratio_sd)
+
+df_MC_performances_large_res_cal <-
+  df_MC_performances_large_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd)
+
+kable(df_MC_performances_large_res_discr) %>%
   kableExtra::kable_styling("striped",
                             position = "center") %>%
     kableExtra::add_header_above(
      c(" " = 3,
        "AUC" = 2,
-       "IPA" = 2,
-       "O-E ratio" = 2,
+       "IPA" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Large cluster scenario" = 7))
+
+kable(df_MC_performances_large_res_OE) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
+       "O-E ratio" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Large cluster scenario" = 5))
+
+kable(df_MC_performances_large_res_cal) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
        "ICI" = 2,
        "E50" = 2,
        "E90" = 2)) %>%
   kableExtra::add_header_above(
-    c("Large cluster scenario" = 15))
-```
-</details>
-
-```{r, res_large, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+    c("Large cluster scenario" = 9))
 ```
 
 ### **3. Additional investigations**
-We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting among clusters in which predictions were possible in both models. 
+We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting among clusters in which predictions were possible in both models.
 
 We provide the corresponding plots of predictions at different time horizons from the stratified versus the shared gamma frailty model in the small and large cluster scenario.  
 
-<details>
-  <summary>Click to expand code</summary>
-```{r, additional, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, fig.align='center', fig.width=7, fig.height=7}
+```{r, additional, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center', fig.width=7, fig.height=7}
 
 # Herds < 50 (herds >= 10)
 table_insem_small <-
@@ -1555,7 +1891,7 @@ pred_strat_small <- 1 - pec::predictSurvProb(cox_strat_small,
                                              times = time_hors)
 
 # Frailty small
-pred_frail_small <- 1 - predict.coxph.gammafrail(model = cox_frail_small,
+pred_frail_small <- 1 - predict.coxph.gammafrail.dev(model = cox_frail_small,
                                                  newdata = df_insem_small,
                                                  cluster = "Herd",
                                                  times = time_hors)$conditional
@@ -1567,7 +1903,7 @@ pred_strat_large <- 1 - pec::predictSurvProb(cox_strat_large,
                                              times = time_hors)
 
 # Frailty large
-pred_frail_large <- 1 - predict.coxph.gammafrail(model = cox_frail_large,
+pred_frail_large <- 1 - predict.coxph.gammafrail.dev(model = cox_frail_large,
                                                  newdata = df_insem_large,
                                                  cluster = "Herd",
                                                  times = time_hors)$conditional
@@ -1677,12 +2013,8 @@ abline(a = 0,
        col = "red")
 
 ```
-</details>
 
-```{r, additional, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
-```
-
-NOTE: comparisons only among clusters where predictions were possible for both models
+NOTE: comparisons only among clusters where predictions were possible for both models 
 
 
 ### **Reproducibility ticket**
