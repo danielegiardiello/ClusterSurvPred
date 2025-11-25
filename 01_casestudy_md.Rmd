@@ -21,16 +21,15 @@ knitr::opts_chunk$set(
 ```
 
 ### **Overview**
-We illustrate the analysis of the case study accompanying the simulation study about the impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models.
-The case study is the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html) described by the book of
-Duchateau and Janssen [The Frailty Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008) (example 1.8)
+We illustrate the analysis of the case studies accompanying the simulation study of the manuscript *"The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models."*
 
 ### **Some useful notations**
 
 Two type of predictions may be possible using frailty:  
   
 + Conditional: predictions given the frailty/random effects  
-  For the shared gamma frailty:  
+  For the shared gamma frailty:    
+  
   $$S_{ij}(t) = exp[-z_ie^{x_{ij}\beta}H_o(t)] = exp[-H_0(t)e^{x_{ij}\beta+\mu_j}] = exp[-z_jH(t)] = exp[-H(t)e^{\mu_j}]$$
   
   where
