@@ -692,8 +692,8 @@ gtsummary_cimbtr_table1 <-
 
 
 gtsummary_cimbtr_table1 %>%
-  gtsummary::as_gt(.) %>%
-  gt::as_raw_html(inline_css = FALSE)
+  gtsummary::as_kable_extra() %>%
+  kableExtra::kable_styling("striped") 
 
 # Barplot
 par(xaxs = "i",
@@ -1518,8 +1518,8 @@ gtsummary_bladder_table1 <-
 
 
 gtsummary_bladder_table1 %>%
-  gtsummary::as_gt(.) %>%
-  gt::as_raw_html(inline_css = FALSE)
+  gtsummary::as_kable_extra() %>%
+  kableExtra::kable_styling("striped") 
 ```
 
 
@@ -2415,8 +2415,9 @@ gtsummary_table1 <-
 
 
 gtsummary_table1 %>%
-  gtsummary::as_gt(.) %>%
-  gt::as_raw_html(inline_css = FALSE)
+  gtsummary::as_kable_extra() %>%
+  kableExtra::kable_styling("striped") 
+
 
 # Cluster size distribution
 table_cluster <-
