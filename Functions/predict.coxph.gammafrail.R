@@ -50,7 +50,7 @@
 # Your suggestions to improve the function are kindly and warmly welcome. 
 
 
-predict.coxph.gammafrail.dev <- function(model,
+predict.coxph.gammafrail <- function(model,
                                      newdata,
                                      cluster,
                                      times) {

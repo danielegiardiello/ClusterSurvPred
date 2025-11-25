@@ -14,9 +14,10 @@ output:
     toc_float: true
     toc_depth: 6
     code_folding: hide
-subtitle: R code for the illustrative case study
+subtitle: R code for the illustrative case studies
 always_allow_html: true
 ---
+
 
 ```{r setup, include=FALSE}
 # Knitr options
@@ -28,9 +29,8 @@ knitr::opts_chunk$set(
 ```
 
 ### **Overview**
-We illustrate the analysis of the case study accompanying the simulation study about the impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models.
-The case study is the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html) described by the book of
-Duchateau and Janssen [The Frailty Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008) (example 1.8)
+We illustrate the analysis of the case studies accompanying the simulation study of the manuscript *"The impact of the size and the number of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models."*
+
 
 ### **Some useful notations**
 
@@ -458,6 +458,51 @@ predict.coxph.gammafrail <- function(model,
 }
 
 
+# Other ad-hoc functions
+# Score function with TryCatch
+Score_tryCatch <- function(predictions,
+                           df,
+                           t_hors,
+                           frm) {
+  tryCatch(
+  
+  {
+    sc <- 
+      riskRegression::Score(
+        list("prediction_model" = predictions),
+        data = df,
+        formula = frm,
+        times = t_hors,
+        metrics = "auc",
+        summary = "ipa")
+    
+    # Merge AUC + IPA into a single tidy table
+    score_metrics <-
+      base::merge(
+        sc$AUC$score[, c("model", "times", "AUC")],
+        sc$Brier$score[, c("model", "times", "IPA")],
+        by = c("model", "times"),
+        all = TRUE)
+    
+    score_metrics_models <-
+      score_metrics %>%
+      dplyr::filter(model %nin% c("Null model"))
+    
+    score_metrics_models},
+  
+  error = function(msg) {
+         message(paste("Prediction not possible"))
+    
+    base::expand.grid(
+      times = t_hors,
+      model = c("prediction_model")) %>%
+      base::transform(AUC = NA_real_, 
+                      IPA = NA_real_)
+  })
+  
+}
+
+
 # smoothed calibration function
 
 calhaz_map <- function(time,
@@ -509,18 +554,1838 @@ We also saved insem data in our repository in the .rds format.
 
 ```{r, import_data, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, results='hide'}
 # Import from the repository
-# insem <- readRDS(here::here("Data/insem.rds"))
+cimbtr_P5300 <- readRDS(here::here("Data/cimbtr_P5300.rds"))
+bladder <- readRDS(here::here("Data/bladder.rds"))
+insem <- readRDS(here::here("Data/insem.rds"))
 
-# Import from parf package
-data(insem,
-     package = "parfm")
+# Import from xxx package
+# data(insem,
+#      package = "parfm")
+# 
+# data(bladder,
+#      package = "survival")
+
 ```
 \newpage
-### **1. Descriptive statistics**
 
+### **First case study: mortality after transplant in myelodysplastic syndrome patients**
+
+
+#### **1. Descriptive statistics**
+
+We provide some descriptive statistics.
+
+```{r, descriptives_transplant, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.width=6, fig.height=6, fig.align='center'}
+# Import data
+# cimbtr_P5300 <- rio::import(here::here("Data/P-5300 (CK18-01)/pub.sas7bdat"))
+
+df_cimbtr_pred <-
+  cimbtr_P5300 %>%
+  dplyr::select(
+    pseudocrid, # patient ID
+    pseudocenterid, # center ID
+    intxsurv, # time from HCT to death (months)
+    dead, # death (any cause)
+    age, # age at transplant
+    sex, # sex
+    racenewgp, # race (to be adjusted)
+    ethgp, # race + ethnicity (to be adjusted)
+    kps, # Karnofsky
+    ncgp, # CIBMTR MDS score at HCT
+    # See: https://pmc.ncbi.nlm.nih.gov/articles/PMC4047501/
+    ipsspr, # IPSS score (continuous)
+    ipssrpr, # IPSS score categorical
+    
+    dnrgp, # donor type and age
+    dnrage) %>%
+  
+  dplyr::mutate(
+    
+    # Sex
+    sex = factor(sex,
+                 levels = c(1, 2),
+                 labels = c("male", "female")),
+    
+    # Race
+    racenewgp = factor(racenewgp,
+                       levels = c(1, 2, 3, 4, 5, 6),
+                       labels = c("Caucasian",
+                                  "African American",
+                                  "Asian",
+                                  "Pacific Islander",
+                                  "Native American",
+                                  "Other")),
+    # Karnofsky
+    kps = factor(kps,
+                 levels = c(0, 1),
+                 labels = c("10-80", "90-100")),
+    
+    # Donor type
+    dnrgp = factor(dnrgp,
+                   levels = c(1, 2, 3),
+                   labels = c("Unrelated", 
+                              "Related", 
+                              "Cord blood")),
+    
+    # MDS scoring system
+    ncgp = factor(ncgp,
+                  levels = c(1, 2, 3, 4),
+                  labels = c("Low", 
+                             "Intermediate", 
+                             "High", 
+                             "Very high")),
+    
+    # IPSS scoring categorical
+    ipssrpr = factor(ipssrpr,
+                     levels = c(1, 2, 3, 4, 5),
+                     labels = c("Very low",
+                                "Low",
+                                "Intermediate",
+                                "High",
+                                "Very high")))
+
+
+# Selection of only essential predictors
+df_cimbtr_sel <-
+  df_cimbtr_pred %>%
+  dplyr::select(
+    pseudocrid, # patient ID
+    pseudocenterid, # center ID
+    intxsurv, # time from HCT to death (months)
+    dead, # death (any cause)
+    ncgp, # CIBMTR MDS score at HCT
+    # See: https://pmc.ncbi.nlm.nih.gov/articles/PMC4047501/
+    ipsspr, # IPSS score (continuous)
+    ipssrpr # IPSS score categorical
+    ) %>%
+  dplyr::filter(!is.na(ncgp))
+
+# For table 1
+
+cimbtr_tab_01 <-
+  df_cimbtr_pred %>%
+  dplyr::select(
+    age,
+    sex,
+    kps,
+    dnrgp,
+    ncgp,
+    ipsspr,
+    ipssrpr) 
+
+label(cimbtr_tab_01$age) <- "Age, years"
+label(cimbtr_tab_01$sex) <- "Sex"
+label(cimbtr_tab_01$kps) <- "Karnofsky score"
+label(cimbtr_tab_01$dnrgp) <- "Donor type"
+label(cimbtr_tab_01$ncgp) <- "CIBMTR-MDS score"
+label(cimbtr_tab_01$ipsspr) <- "IPPS score"
+label(cimbtr_tab_01$ipssrpr) <- "Revised IPSS"
+
+
+gtsummary_cimbtr_table1 <-
+  gtsummary::tbl_summary(
+    data = cimbtr_tab_01 ,
+    label = list(
+      age ~ "Age, years",
+      sex ~  "Sex",
+      kps ~ "Karnofsky score",
+      dnrgp ~ "Donor type",
+      ncgp ~ "CIBMTR-MDS score",
+      ipsspr ~ "IPPS score",
+      ipssrpr ~ "Revised IPSS"),
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({min}, {max})")) 
+
+
+gtsummary_cimbtr_table1
+
+# Barplot
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+barplot(table(df_cimbtr_sel$pseudocenterid),
+        ylab = "Frequency",
+        xlab = "Transplant Center ID",
+        ylim = c(0, 100),
+        main = "Transplant center size")
+
+# Table cluster
+table_cluster <-
+  df_cimbtr_sel %>%
+  dplyr::group_by(pseudocenterid) %>%
+  dplyr::summarise(n = n()) %>%
+  dplyr::arrange(n)
+
+# Summary cluster size
+summary_cluster <-
+  table_cluster %>%
+  dplyr::summarise(min = min(n),
+                   q25 = quantile(n, probs = .25),
+                   mean = mean(n),
+                   sd = sd(n),
+                   median = median(n),
+                   q75 = quantile(n, probs = .75),
+                   max = max(n)) %>%
+  round(., 1)
+
+kable(summary_cluster) %>%
+  kableExtra::kable_styling("striped") %>%
+    kableExtra::add_header_above(
+     c("Cluster size statistics" = 7))
+
+
+# Survfit: overall and by cluster
+# survfit
+sf_overall <- survival::survfit(Surv(intxsurv,
+                                     dead) ~ 1,
+                                data = df_cimbtr_sel)
+
+q_overall <- quantile(sf_overall,
+                      probs = c(.25, .50, .75))$quantile
+
+sf_cluster <- survival::survfit(Surv(intxsurv,
+                                     dead) ~ pseudocenterid,
+                                data = df_cimbtr_sel)
+
+par(xaxs = "i",
+    yaxs = "i", 
+    las = 1)
+plot(sf_cluster,
+     col = "gray",
+     ylim = c(0, 1),
+     xlim = c(0, 100),
+     bty = "n",
+     xlab = "Months from transplant",
+     ylab = "Probability",
+     main = "Overall and by center Kaplan-Meier curves")
+lines(sf_overall,
+      lwd = 2,
+      col = "red",
+      conf.int = FALSE)
+
+# Remove centers below 10 patients
+table_cimbtr_centers <- 
+  df_cimbtr_sel %>%
+  dplyr::count(pseudocenterid) %>%
+  dplyr::filter(n >= 10)
+
+df_cimbtr_sel <- 
+  df_cimbtr_sel %>%
+  dplyr::filter(pseudocenterid %in% 
+                  table_cimbtr_centers$pseudocenterid)
+```
+  
+#### **2. Analysis**
+
+We used the internationally recognized CIMBTR-MDS prognostic score as the solely predictor. The score combined different patients and donors’ clinical, haematological and genetics characteristics without considering data clustered in different transplantation centres.  
+Details are provided by Nazha A, et al. (2020) [here](https://pubmed.ncbi.nlm.nih.gov/32781289/) and by 
+Shaffer BC et al. (2016) [here](https://pubmed.ncbi.nlm.nih.gov/27044940/).
+We considered patients with non-missing CIMBTR-MDS prognostic score. 
+
+We provide the accuracy of predictions from the stratified and the shared gamma frailty Cox proportional hazards models using the transplantation centres as cluster.
+
+The accuracy of predictions are evaluated in terms of:  
+
++ Discrimination using time-varying AUC  
++ Calibration using O/E ratio, integrated calibration index (ICI), E50 and E90  
++ Overall performance using time-varying Index of Prediction Accuracy (IPA)  
+
+We use the Monte Carlo cross-validation procedure to assess prediction
+performances of the stratified and frailty Cox model.  
+
++ The sample was split into two parts to define derivation (70%) and validation samples (30%)  
++ The 70/30% random splits are repeated 100 times  
++ The repeated random splits are stratified by transplant centre (i.e., the cluster) to obtain the same centre in both the derivation and validation samples  
+
+We excluded centers with less than 10 patients since it was not possible to obtain sufficient patients in both derivation and validation sample. 
+
+The mean of the performances metrics across the 100 random validation samples with the corresponding standard deviation are reported for each scenario and at each prediction time horizon to assess the prediction performances of the stratified and the frailty Cox models.
+
+The fixed time horizons are at 12, 24 and 36 months since transplant since most of the mortality events occurred in the first three years. 
+
+A total of 631 patients from 28 transplantation centers were included. 
+
+```{r, cross_val_transplant, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+# Rewrite B
+B <- 100
+# time_hors <- c(6, 12, 24)
+time_hors <- c(12, 24, 36)
+
+# Models + predictions + performances
+# tictoc::tic()
+df_tbl_cimbtr <-
+  df_tbl_cimbtr %>%
+  dplyr::filter(check == TRUE) %>%
+  dplyr::select(data,
+                development,
+                validation) %>%
+  
+  dplyr::mutate(
+    cox_strat = purrr::map(.x = development,
+                           ~ survival::coxph(Surv(intxsurv, dead) ~ 
+                                               ncgp +
+                                               strata(pseudocenterid), 
+                                             data = .x,
+                                             x = T,
+                                             y = T, 
+                                             ties = "breslow")),
+    
+    cox_frail = purrr::map(.x = development,
+                           ~ survival::coxph(Surv(intxsurv, dead) ~ 
+                                               ncgp +
+                                               frailty(pseudocenterid), 
+                                             data = .x, 
+                                             x = T, 
+                                             y = T,
+                                             ties = "breslow")),
+    
+    # predictions at t25/t50/t75
+    # stratified cox
+    pred_strat = purrr::map2(.x = cox_strat,
+                             .y = validation,
+                             ~ 1 - pec::predictSurvProb(.x,
+                                                        newdata = .y,
+                                                        times = time_hors)),
+    # Extremes to make calibration suitable
+    pred_strat = purrr::map(pred_strat,
+                            function(x) { 
+                              x <- ifelse(x == 0, 0.000001, x)
+                              x <- ifelse(x == 1, 0.999999, x)
+                              x}),
+    
+    # separate prediction by time horizons 
+    # due to possible missing values 
+    pred_strat_t25 = purrr::map(.x = pred_strat,
+                                ~ .x[, 1]),
+    
+    pred_strat_t50 = purrr::map(.x = pred_strat,
+                                ~ .x[, 2]),
+    
+    pred_strat_t75 = purrr::map(.x = pred_strat,
+                                ~ .x[, 3]),
+    
+    pred_frail = purrr::map2(.x = cox_frail,
+                             .y = validation,
+                             ~ 1 - predict.coxph.gammafrail(model = .x,
+                                                            newdata = .y,
+                                                            cluster = "pseudocenterid",
+                                                            times = time_hors)$conditional),
+    
+    pred_frail = purrr::map2(.x = cox_frail,
+                             .y = validation,
+                             ~ 1 - predict.coxph.gammafrail(model = .x,
+                                                            newdata = .y,
+                                                            cluster = "pseudocenterid",
+                                                            times = time_hors)$conditional),
+    pred_frail_t25 = purrr::map(.x = pred_frail,
+                                ~ .x[, 1]),
+    
+    pred_frail_t50 = purrr::map(.x = pred_frail,
+                                ~ .x[, 2]),
+    
+    pred_frail_t75 = purrr::map(.x = pred_frail,
+                                ~ .x[, 3]),
+    
+    # Score at t25 - frail
+    score_frail_t25 = purrr::pmap(
+      list(predictions = pred_frail_t25,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[1])),
+      Score_tryCatch),
+    
+    # Score at t50 - frail
+    score_frail_t50 = purrr::pmap(
+      list(predictions = pred_frail_t50,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[2])),
+      Score_tryCatch),
+    
+    # Score at t75 - frail
+    score_frail_t75 = purrr::pmap(
+      list(predictions = pred_frail_t75,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[3])),
+      Score_tryCatch),
+    
+    # Extremes to make calibration suitable
+    pred_frail = purrr::map(pred_frail,
+                            function(x) { 
+                              x <- ifelse(x == 0, 0.000001, x)
+                              x <- ifelse(x == 1, 0.999999, x)
+                              x}),
+    
+    # Score at t25 - strata
+    score_strat_t25 = purrr::pmap(
+      list(predictions = pred_strat_t25,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[1])),
+      Score_tryCatch),
+    
+    
+    # Score at t50 - strata
+    score_strat_t50 = purrr::pmap(
+      list(predictions = pred_strat_t50,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[2])),
+      Score_tryCatch),
+    
+    # Score at t75 - strata
+    score_strat_t75 = purrr::pmap(
+      list(predictions = pred_strat_t75,
+           df = validation,
+           frm = list(as.formula(Surv(intxsurv, dead) ~ 1)),
+           t_hors = list(time_hors[3])),
+      Score_tryCatch),
+    
+    
+    # cloglog
+    # cloglog - strat
+    cloglog_pred_strat = purrr::map(pred_strat,
+                                    function(x) {
+                                      apply(x, 2, function(y) {
+                                        log(-log(1 - y))
+                                      })
+                                    }),
+    
+    # cloglog - strat t25/t50/t75
+    cloglog_pred_strat_t25 = purrr::map(.x = cloglog_pred_strat,
+                                        ~ .x[, 1]),
+    
+    cloglog_pred_strat_t50 = purrr::map(.x = cloglog_pred_strat,
+                                        ~ .x[, 2]),
+    
+    cloglog_pred_strat_t75 = purrr::map(.x = cloglog_pred_strat,
+                                        ~ .x[, 3]),
+    
+    # cloglog
+    # cloglog - frail
+    cloglog_pred_frail = purrr::map(pred_frail,
+                                    function(x) {
+                                      apply(x, 2, function(y) {
+                                        log(-log(1 - y))
+                                      })
+                                    }),
+    # cloglog - frail t25/t50/t75
+    cloglog_pred_frail_t25 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 1]),
+    
+    cloglog_pred_frail_t50 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 2]),
+    
+    cloglog_pred_frail_t75 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 3]),
+    
+    
+    # average expected risk
+    pred_avg_strat = purrr::map(pred_strat,
+                                function(x){
+                                  apply(x, 2, mean)
+                                }),
+    
+    pred_avg_frail = purrr::map(pred_frail,
+                                function(x) {
+                                  apply(x, 2, mean)
+                                }),
+    
+    # estimated actual risk (estimated obs proportion, observed)
+    sf_obs = purrr::map(validation,
+                        function(x) {
+                          sf_sum <- 
+                            summary(survival::survfit(Surv(intxsurv, dead) ~ 1,
+                                                      data = x),
+                                    extend = TRUE,
+                                    times = time_hors)
+                          
+                          sf_sum$surv[sf_sum$n.risk == 0] <- NA
+                          sf_obs_event <- 1 - sf_sum$surv}),
+    
+    # calibration
+    
+    # OE ratio - strat
+    OE_strat = purrr::map2(.x = sf_obs,
+                           .y = pred_avg_strat,
+                           ~ .x / .y),
+    
+    # OE ratio - frail
+    OE_frail = purrr::map2(.x = sf_obs,
+                           .y = pred_avg_frail,
+                           ~ .x / .y),
+    
+    # ICI/E50/E90 - frail t25
+    cal_meas_frail_t25  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_frail_t25,
+           t_hors = list(time_hors[1]),
+           predictions = purrr::map(pred_frail, ~ .x[, 1])),
+      calhaz_map),
+    
+    # ICI/E50/E90 - frail t50
+    cal_meas_frail_t50  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_frail_t50,
+           t_hors = list(time_hors[2]),
+           predictions = purrr::map(pred_frail, ~ .x[, 2])),
+      calhaz_map),
+    
+    # ICI/E50/E90 - frail t75
+    cal_meas_frail_t75  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_frail_t75,
+           t_hors = list(time_hors[3]),
+           predictions = purrr::map(pred_frail, ~ .x[, 3])),
+      calhaz_map),
+    
+    # stratify
+    # ICI/E50/E90 - strat t25
+    cal_meas_strat_t25  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_strat_t25,
+           t_hors = list(time_hors[1]),
+           predictions = purrr::map(pred_strat, ~ .x[, 1])),
+      calhaz_map),
+    
+    # ICI/E50/E90 - strat t50
+    cal_meas_strat_t50  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_strat_t50,
+           t_hors = list(time_hors[2]),
+           predictions = purrr::map(pred_strat, ~ .x[, 2])),
+      calhaz_map),
+    
+    # ICI/E50/E90 - strat t75
+    cal_meas_strat_t75  = purrr::pmap(
+      list(time = purrr::map(validation, ~ .x$intxsurv),
+           status = purrr::map(validation, ~ .x$dead),
+           covariates = cloglog_pred_strat_t75,
+           t_hors = list(time_hors[3]),
+           predictions = purrr::map(pred_strat, ~ .x[, 3])),
+      calhaz_map))
+
+# tictoc::toc()
+
+```
+\newpage
+
+```{r, res_transplant, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+# Aggregating results
+
+# ## Discrimination
+# df_frail_discr <-
+#   rbind(do.call(rbind, df_tbl_cimbtr$score_frail_t25),
+#         do.call(rbind, df_tbl_cimbtr$score_frail_t50),
+#         do.call(rbind, df_tbl_cimbtr$score_frail_t75)) %>%
+# 
+#   dplyr::mutate(model =
+#                   dplyr::case_when(model == "prediction_model" ~ "frail",
+#                                    .default = "frail"))
+# # 
+# df_strat_discr <-
+#   rbind(do.call(rbind, df_tbl_cimbtr$score_strat_t25),
+#         do.call(rbind, df_tbl_cimbtr$score_strat_t50),
+#         do.call(rbind, df_tbl_cimbtr$score_strat_t75)) %>%
+#   dplyr::mutate(model =
+#                   dplyr::case_when(model == "prediction_model" ~ "strat",
+#                                    .default = "strat"))
+# 
+# # # Discrimination stratify + frailty
+# df_discr_res <-
+#   rbind(df_strat_discr,
+#         df_frail_discr)
+# 
+# # # Usable comparisons
+# df_discr_res_miss <-
+#   df_discr_res %>%
+#   dplyr::group_by(model, times) %>%
+#   dplyr::summarise(miss_comp = round((sum(is.na(AUC)) / B) * 100, 2)) %>%
+#   dplyr::mutate(usable_comp = 100 - miss_comp)
+# 
+# # rm(df_frail_discr,
+# #    df_strat_discr)
+# #
+# # # calibration measures results
+# #
+# # # calibration measures
+# df_cal_res <-
+#   data.frame(
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
+#     times = rep(time_hors, each = B)) %>%
+# 
+#     dplyr::bind_cols(
+#       rbind(
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_strat_t25),
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_strat_t50),
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_strat_t75),
+# 
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_frail_t25),
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_frail_t50),
+#         do.call(rbind, df_tbl_cimbtr$cal_meas_frail_t75))) %>%
+# 
+#   dplyr::rename(ICI = V1,
+#                 E50 = V2,
+#                 E90 = "90%") %>%
+# 
+#   dplyr::mutate(
+#     model = dplyr::case_when(model == "prediction_model" ~ "strat",
+#                              .default = model))
+# 
+# 
+# ## O-E ratio
+# df_oe_res <-
+#   data.frame(
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
+#     times = rep(time_hors, times = B)) %>%
+# 
+#   dplyr::bind_cols(
+#     OE_ratio = rbind(
+#       do.call(rbind, lapply(df_tbl_cimbtr$OE_strat, cbind)),
+#       do.call(rbind, lapply(df_tbl_cimbtr$OE_frail, cbind)))) %>%
+# 
+#   dplyr::arrange(desc(model), times)
+# #
+# #
+# # # All measures together
+# #
+# df_performances_cimbtr <-
+#   df_discr_res %>%
+#   dplyr::bind_cols(df_oe_res %>%
+#                      dplyr::select(-model,
+#                                    -times)) %>%
+#   dplyr::bind_cols(df_cal_res %>%
+#                      dplyr::select(-model,
+#                                    -times))
+#
+# saveRDS(df_performances_cimbtr,
+#         file = here::here("Data/df_perf_casestudy_cimbtr.rds"))
+
+df_performances_cimbtr <-
+  readRDS(file = here::here("Output/df_perf_casestudy_cimbtr.rds"))
+
+B <- 100
+df_perf_miss <-
+  df_performances_cimbtr %>%
+  dplyr::group_by(model, times) %>%
+  dplyr::summarise(miss_comp = round((sum(is.na(AUC)) / B) * 100, 2)) %>%
+  dplyr::mutate(usable_comp = 100 - miss_comp)
+
+
+# MC estimates
+
+df_MC_performances <-
+  df_performances_cimbtr %>%
+  dplyr::filter(!is.na(AUC)) %>%
+  dplyr::group_by(times, model) %>%
+  dplyr::summarise(
+    
+    AUC_mean = mean(AUC, na.rm = T),
+    AUC_low = quantile(AUC, probs = 0.025, na.rm = T),
+    AUC_high = quantile(AUC, probs = 0.975, na.rm = T),
+    AUC_sd = sd(AUC, na.rm = T),
+    
+    IPA_mean = mean(IPA, na.rm = T),
+    IPA_low = quantile(IPA, probs = 0.025, na.rm = T),
+    IPA_high = quantile(IPA, probs = 0.975, na.rm = T),
+    IPA_sd = sd(IPA, na.rm = T),
+    
+    OE_ratio_mean = mean(OE_ratio, na.rm = T),
+    OE_ratio_low = quantile(OE_ratio, probs = 0.025, na.rm = T),
+    OE_ratio_high = quantile(OE_ratio, probs = 0.975, na.rm = T),
+    OE_ratio_sd = sd(OE_ratio, na.rm = T),
+    
+    ICI_mean = mean(ICI, na.rm = T),
+    ICI_low = quantile(ICI, probs = 0.025, na.rm = T),
+    ICI_high = quantile(ICI, probs = 0.975, na.rm = T),
+    ICI_sd = sd(ICI, na.rm = T),
+    
+    E50_mean = mean(E50, na.rm = T),
+    E50_low = quantile(E50, probs = 0.025, na.rm = T),
+    E50_high = quantile(E50, probs = 0.975, na.rm = T),
+    E50_sd = sd(E50, na.rm = T),
+    
+    E90_mean = mean(E90, na.rm = T),
+    E90_low = quantile(E90, probs = 0.025, na.rm = T),
+    E90_high = quantile(E90, probs = 0.975, na.rm = T),
+    E90_sd = sd(E50, na.rm = T)) %>%
+  
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+
+# Results
+df_MC_performances_res <-
+  df_MC_performances %>%
+  dplyr::left_join(df_perf_miss,
+                   by = c("model",
+                          "times")) %>%
+  dplyr::select(model,
+                times,
+                usable_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd,
+                OE_ratio_mean,
+                OE_ratio_sd,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd) %>%
+  dplyr::rename(
+    pct_comp = usable_comp)
+
+
+df_MC_performances_res_discr <-
+  df_MC_performances_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd)
+
+df_MC_performances_res_OE <-
+  df_MC_performances_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                OE_ratio_mean,
+                OE_ratio_sd)
+
+df_MC_performances_res_cal <-
+  df_MC_performances_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd)
+
+kable(df_MC_performances_res_discr) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+  kableExtra::add_header_above(
+    c(" " = 3,
+      "AUC" = 2,
+      "IPA" = 2)) %>%
+  kableExtra::add_header_above(
+    c("CIMBTR dataset" = 7))
+
+
+kable(df_MC_performances_res_OE) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+  kableExtra::add_header_above(
+    c(" " = 3,
+      "O-E ratio" = 2)) %>%
+  kableExtra::add_header_above(
+    c("CIMBTR dataset" = 5))
+
+kable(df_MC_performances_res_cal) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+  kableExtra::add_header_above(
+    c(" " = 3,
+      "ICI" = 2,
+      "E50" = 2,
+      "E90" = 2)) %>%
+  kableExtra::add_header_above(
+    c("CIMBTR dataset" = 9))
+```
+
+#### **3. Additional investigations**
+We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting among clusters in which predictions were possible in both models.
+
+We provide the corresponding plots of predictions at the different specified time horizons from the stratified versus the shared gamma frailty model  
+
+```{r, additional_transplant, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
+
+
+# Stratified Cox 
+cox_strat_cimbtr <-
+  survival::coxph(Surv(intxsurv, dead) ~ 
+                    ncgp +
+                    strata(pseudocenterid), 
+      data = df_cimbtr_sel, 
+      x = T, 
+      y = T, 
+      ties = "breslow")
+
+# Frailty Cox 
+cox_frail_cimbtr <-
+  survival::coxph(Surv(intxsurv, dead) ~ 
+                    ncgp +
+                    frailty(pseudocenterid), 
+      data = df_cimbtr_sel, 
+      x = T, 
+      y = T, 
+      ties = "breslow")
+
+
+
+## Predictions horizons
+# at 12, 24, and 36 months
+time_hors <- c(12, 24, 36)
+
+
+# Predictions 
+# Stratified small
+pred_strat_cimbtr <- 1 - pec::predictSurvProb(cox_strat_cimbtr,
+                                              newdata = df_cimbtr_sel,
+                                              times = time_hors)
+
+# Frailty small
+pred_frail_cimbtr <- 1 - predict.coxph.gammafrail(model = cox_frail_cimbtr,
+                                                  newdata = df_cimbtr_sel,
+                                                  cluster = "pseudocenterid",
+                                                  times = time_hors)$conditional
+
+
+# Plot predictions
+# from stratify and frailty model
+
+# Small scenario at T25, T50 and T75
+oldpar <-
+  par(
+    mfrow = c(1, 3),
+    xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_cimbtr[, 1],
+     pred_frail_cimbtr[, 1],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 12 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 12 months"),
+     main = expression("Estimated mortality at 12 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_cimbtr[, 2],
+     pred_frail_cimbtr[, 2],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 24 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 24 months"),
+     main = expression("Estimated mortality at 24 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_cimbtr[, 3],
+     pred_frail_cimbtr[, 3],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 36 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 36 months"),
+     main = expression("Estimated mortality at 36 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+```
+
+NOTE: comparisons only among clusters where predictions were possible for both models 
+
+### **Second case study: bladder data**
+
+#### **1. Descriptive statistics**
 We provide some descriptive statistics of the case study
 
-```{r, descriptives, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
+```{r, table1_bladder, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center', results='asis'}
+
+df_bladder <-
+  bladder %>%
+  dplyr::rename_all(tolower) %>%
+  dplyr::mutate(
+  
+    # combine status
+    cstatus = dplyr::case_when(
+      status %in% c(1, 2) ~ 1,
+      status == 0 ~ 0),
+    
+    age = factor(age,
+                 levels = c(0, 1),
+                 labels = c("<= 65 yr", "> 65 yr")),
+    
+    sex = factor(sex,
+                 levels = c(0, 1),
+                 labels = c("male", "female")),
+    
+    priorrec = factor(priorrec,
+                      levels = c(0, 1, 2),
+                      labels = c("primary",
+                                 "<= 1 yr",
+                                  "> 1 yr")),
+    
+    chemo = factor(chemo,
+                   levels = c(0, 1),
+                   labels = c("no", "yes")),
+    
+    notum = factor(notum,
+                   levels = c(0, 1, 2),
+                   labels = c("single tumor",
+                              "2-7 tumors",
+                              ">= 8 tumors")),
+    
+    tum3cm = factor(tum3cm,
+                    levels = c(0, 1),
+                    labels = c("< 3 cm", ">= 3 cm")),
+    
+    tlocc = factor(tlocc,
+                   levels = c(0, 1),
+                   labels = c("Ta", "T1")),
+    
+    cis = factor(cis, 
+                 levels = c(0, 1),
+                 labels = c("no", "yes")),
+    
+    glocal = factor(glocal, 
+                    levels = c(0, 1, 2),
+                    labels = c("G1", "G2", "G3")))
+
+# Table 1
+bladder_tab_01 <-
+  df_bladder %>%
+  dplyr::mutate(
+    
+        status = factor(status,
+                        levels = c(0, 1, 2),
+                        labels = c("Recurrence",
+                                   "Death before recurrence",
+                                   "Censored"))) %>%
+  dplyr::select(age,
+                sex,
+                chemo,
+                priorrec,
+                notum,
+                tum3cm,
+                tlocc,
+                cis,
+                glocal,
+                cstatus,
+                status)
+
+label(bladder_tab_01$age) <- "Age, years"
+label(bladder_tab_01$sex) <- "Sex"
+label(bladder_tab_01$chemo) <- "Chemotherapy"
+label(bladder_tab_01$priorrec) <- "Prior recurrent rate"
+label(bladder_tab_01$tum3cm) <- "Tumor size"
+label(bladder_tab_01$notum) <- "Number of tumors"
+label(bladder_tab_01$tlocc) <- "T category"
+label(bladder_tab_01$cis) <- "Carcinoma in situ"
+label(bladder_tab_01$glocal) <- "Tumor grade"
+
+gtsummary_bladder_table1 <-
+  gtsummary::tbl_summary(
+    data = bladder_tab_01 ,
+    label = list(
+      age ~ "Age, years",
+      sex ~  "Sex",
+      chemo ~ "Chemotherapy",
+      priorrec ~ "Prior recurrent rate",
+      tum3cm ~ "Tumor size",
+      notum ~ "Number of tumors",
+      tlocc ~ "T category",
+      cis ~ "Carcinoma in situ",
+      glocal ~ "Tumor grade"),
+    type = all_continuous() ~ "continuous2",
+    statistic = all_continuous() ~ c(
+      "{mean} ({sd})",
+      "{median} ({min}, {max})")) 
+
+
+gtsummary_bladder_table1 
+  # gtsummary_bladder_table1 %>%
+  # gtsummary::as_gt(.)
+
+# knitr::knit_print(gtsummary_bladder_table1)
+```
+\newpage
+
+
+```{r descriptive_bladder, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
+# Cluster size distribution
+table_cluster <-
+  df_bladder %>%
+  dplyr::group_by(center) %>%
+  dplyr::summarise(n = n()) %>%
+  dplyr::arrange(n)
+
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+barplot(table(df_bladder$center),
+        ylab = "Frequency",
+        xlab = "Center ID",
+        ylim = c(0, 80),
+        main = "Center/cluster size")
+  
+# kable(table_cluster) %>%
+#   kableExtra::kable_styling("striped",
+#                             position = "center") %>%
+#     kableExtra::add_header_above(
+#      c("Cluster size distribution" = 2))
+
+# Summary cluster size
+summary_cluster <-
+  table_cluster %>%
+  dplyr::summarise(min = min(n),
+                   q25 = quantile(n, probs = .25),
+                   mean = mean(n),
+                   sd = sd(n),
+                   median = median(n),
+                   q75 = quantile(n, probs = .75),
+                   max = max(n)) %>%
+  round(., 1)
+
+kable(summary_cluster) %>%
+  kableExtra::kable_styling("striped") %>%
+    kableExtra::add_header_above(
+     c("Cluster size statistics" = 7))
+
+# Event distribution per cluster
+# kable(
+#   addmargins(
+#     table(df_bladder$center,
+#           df_bladder$cstatus,
+#           useNA = "ifany",
+#           dnn = c("Cluster",
+#                   "Status")))) %>%
+#     kableExtra::kable_styling("striped") %>%
+#   kableExtra::add_header_above(
+#      c("Cluster" = 1,
+#        "Status" =  2,
+#        "Sum" = 1))
+  
+# survfit
+sf_overall <- survival::survfit(Surv(surtime,
+                                     cstatus) ~ 1,
+                                data = df_bladder)
+
+sf_cluster <- survival::survfit(Surv(surtime,
+                                     cstatus) ~ center,
+                                data = df_bladder)
+
+
+par(xaxs = "i",
+    yaxs = "i", 
+    las = 1)
+plot(sf_cluster,
+     col = "gray",
+     ylim = c(0, 1),
+     bty = "n",
+     xlab = "Time-to-first event from randomization (days)",
+     ylab = "Probability",
+     main = "Overall and by center Kaplan-Meier curves")
+lines(sf_overall,
+      lwd = 2,
+      col = "red",
+      conf.int = FALSE)
+
+# Time quantiles
+q_overall <- quantile(sf_overall,
+                      probs = c(.25, .50, .75))$quantile
+q_cluster <- 
+  quantile(sf_cluster,
+           probs = c(.25, .50, .75))$quantile
+
+q_surv <- rbind.data.frame("Overall" = q_overall,
+                           q_cluster)
+
+# kable(q_surv[1, ]) %>%
+#   kableExtra::kable_styling("striped",
+#                             position = "center") %>%
+#   kableExtra::add_header_above(
+#     c(" " = 1,
+#       "Time quantile" = 3))
+```
+
+\newpage
+
+#### **2. Analysis**
+
+We also apply the same analysis framework described previously using data on bladder cancer patients participating in a European Organization for Research and Treatment of Cancer (EORTC) trial [ref](https://pubmed.ncbi.nlm.nih.gov/16442208/). 
+
+We used the free available data bladder from the R package `survival` consisting of 396 patients from 21 cancer centres. As described in the previous paragraph, we excluded centres with less than 10 patients to assess the prediction performances of the stratified and the shared frailty gamma Cox models to estimate disease-free survival at 365.25, 730.5 and 1095.75 days (i.e., 12, 24 and 36 months) using the Monte Carlo cross-validation procedure. The following predictors were included: age, sex, chemotherapy, number of tumours, tumour size, T stage and grade. A total of 355 patients from 14 centres were included. Two hundred and fifty-three events were observed (175 recurrences and 78 deaths before recurrence). The number of patients per centre varied between 11 and 78 with mean 27.3 and median 18.
+
+```{r, cross_val_bladder, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+
+# time horizons
+# time_hors <- c(185, 787, 2093)
+time_hors <- c(365.25, 730.5, 1095.75)
+
+# reference values for continuous
+# predictors
+
+# Centres with >= 10 patients
+table_bladder_sel <-
+  df_bladder %>%
+  dplyr::count(center) %>%
+  dplyr::filter(n >= 10)
+
+df_bladder_sel <- 
+  df_bladder %>%
+  dplyr::filter(center %in% table_bladder_sel$center)
+
+# Repeat B times
+B <- 101
+df_bladder_sel_ext <- do.call(rbind, 
+                              lapply(seq(1:B), 
+                                     function(k) {
+                                       cbind(id = k, df_bladder_sel)}))
+# Nested tibble
+set.seed(20250924)
+df_tbl_bladder <-
+  df_bladder_sel_ext %>%
+  dplyr::group_nest(id) %>%
+  dplyr::mutate(
+    # Splitting
+    split = purrr::map(.x = data,
+                       ~ rsample::initial_split(.x,
+                                                strata = center,
+                                                prop = 0.7,
+                                                pool = 0.001)),
+    # Development
+    development = purrr::map(.x = split,
+                             ~ rsample::training(.x)),
+      
+    # Validation                       
+    validation = purrr::map(.x = split,
+                             ~ rsample::testing(.x)),
+    
+    # Check 
+    unique_cluster_dev = purrr::map(.x = development,
+                                    ~ sort(unique(.x$center))),
+    
+    unique_cluster_val = purrr::map(.x = validation,
+                                    ~ sort(unique(.x$center))),
+    
+    check = purrr::map2(.x = unique_cluster_dev,
+                        .y = unique_cluster_val,
+                        ~ all.equal(.x, .y)))
+                                    
+                                    
+# table(do.call(rbind, df_tbl_bladder$check))  
+rm(df_bladder_sel_ext)
+# gc()
+# check
+# table(do.call(rbind, df_tbl_bladder$check))
+# all TRUE
+
+# Rewrite B
+B <- 100
+
+# Models + predictions + performances
+# tictoc::tic()
+df_tbl_bladder <-
+  df_tbl_bladder %>%
+  dplyr::filter(check == TRUE) %>%
+  dplyr::select(data,
+                development,
+                validation) %>%
+  
+  dplyr::mutate(
+    cox_strat = purrr::map(.x = development,
+                           ~ survival::coxph(Surv(surtime, cstatus) ~ 
+                                               age +
+                                               sex +
+                                               chemo + 
+                                               tum3cm +
+                                               notum +
+                                               tlocc +
+                                               glocal +
+                                               strata(center), 
+                                             data = .x,
+                                             x = T,
+                                             y = T, 
+                                             ties = "breslow")),
+    
+    cox_frail = purrr::map(.x = development,
+                           ~ survival::coxph(Surv(surtime, cstatus) ~ 
+                                               age +
+                                               sex +
+                                               chemo + 
+                                               tum3cm +
+                                               notum +
+                                               tlocc +
+                                               glocal +
+                                               frailty(center), 
+                                             data = .x, 
+                                             x = T, 
+                                             y = T,
+                                             ties = "breslow")),
+    
+    # predictions at t25/t50/t75
+    # stratified cox
+    pred_strat = purrr::map2(.x = cox_strat,
+                             .y = validation,
+                             ~ 1 - pec::predictSurvProb(.x,
+                                                        newdata = .y,
+                                                        times = time_hors)),
+    # Extremes to make calibration suitable
+    pred_strat = purrr::map(pred_strat,
+                            function(x) { 
+                              x <- ifelse(x == 0, 0.000001, x)
+                              x <- ifelse(x == 1, 0.999999, x)
+                              x}),
+
+    # separate prediction by time horizons 
+    # due to possible missing values 
+    pred_strat_t25 = purrr::map(.x = pred_strat,
+                                ~ .x[, 1]),
+    
+    pred_strat_t50 = purrr::map(.x = pred_strat,
+                                ~ .x[, 2]),
+    
+    pred_strat_t75 = purrr::map(.x = pred_strat,
+                                ~ .x[, 3]),
+    
+    pred_frail = purrr::map2(.x = cox_frail,
+                             .y = validation,
+                             ~ 1 - predict.coxph.gammafrail.dev(model = .x,
+                                                                newdata = .y,
+                                                                cluster = "center",
+                                                                times = time_hors)$conditional),
+    # Extremes to make calibration suitable
+    pred_frail = purrr::map(pred_frail,
+                            function(x) { 
+                              x <- ifelse(x == 0, 0.000001, x)
+                              x <- ifelse(x == 1, 0.999999, x)
+                              x}),
+    
+    # Score at t25/t50/t75 - frail
+    score_frail = purrr::map2(.x = pred_frail,
+                              .y = validation,
+                              ~ riskRegression::Score(
+                                list("frail" = .x),
+                                data = .y,
+                                formula = Surv(surtime, cstatus) ~ 1,
+                                metrics = "auc",
+                                summary = "ipa",
+                                times = time_hors)),
+    
+    # save results score - frail
+    score_frail_res = purrr::map(score_frail,
+                                 function(x) {
+                                   
+                                   res_AUC <- 
+                                     x$AUC$score %>%
+                                     dplyr::select(model, times, AUC)
+                                   
+                                   res_IPA <-
+                                     x$Brier$score %>%
+                                     dplyr::select(model, times, IPA) %>%
+                                     dplyr::filter(model %nin% c("Null model"))
+                                   
+                                   res <- cbind(res_AUC,
+                                                "IPA" = res_IPA$IPA)
+                                   
+                                   return(res)
+                                 }),
+                          
+    # Score at t25 - strata
+   score_strat_t25 = purrr::pmap(
+      list(predictions = pred_strat_t25,
+           df = validation,
+           frm = list(as.formula(Surv(surtime, cstatus) ~ 1)),
+           t_hors = list(time_hors[1])),
+      Score_tryCatch),
+    
+    
+    # Score at t50 - strata
+    score_strat_t50 = purrr::pmap(
+      list(predictions = pred_strat_t50,
+           df = validation,
+           frm = list(as.formula(Surv(surtime, cstatus) ~ 1)),
+           t_hors = list(time_hors[2])),
+      Score_tryCatch),
+    
+    # Score at t75 - strata
+    score_strat_t75 = purrr::pmap(
+      list(predictions = pred_strat_t75,
+           df = validation,
+           frm = list(as.formula(Surv(surtime, cstatus) ~ 1)),
+           t_hors = list(time_hors[3])),
+      Score_tryCatch),
+    
+    
+    # cloglog
+    # cloglog - strat
+    cloglog_pred_strat = purrr::map(pred_strat,
+                                    function(x) {
+                                      apply(x, 2, function(y) {
+                                        log(-log(1 - y))
+                                      })
+                                    }),
+   
+   # cloglog - strat t25/t50/t75
+   cloglog_pred_strat_t25 = purrr::map(.x = cloglog_pred_strat,
+                                       ~ .x[, 1]),
+   
+   cloglog_pred_strat_t50 = purrr::map(.x = cloglog_pred_strat,
+                                       ~ .x[, 2]),
+   
+   cloglog_pred_strat_t75 = purrr::map(.x = cloglog_pred_strat,
+                                       ~ .x[, 3]),
+   
+    # cloglog
+    # cloglog - frail
+    cloglog_pred_frail = purrr::map(pred_frail,
+                                    function(x) {
+                                      apply(x, 2, function(y) {
+                                        log(-log(1 - y))
+                                      })
+                                    }),
+   # cloglog - frail t25/t50/t75
+    cloglog_pred_frail_t25 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 1]),
+   
+    cloglog_pred_frail_t50 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 2]),
+   
+    cloglog_pred_frail_t75 = purrr::map(.x = cloglog_pred_frail,
+                                        ~ .x[, 3]),
+   
+
+    # average expected risk
+    pred_avg_strat = purrr::map(pred_strat,
+                                function(x){
+                                  apply(x, 2, mean)
+                                }),
+   
+    pred_avg_frail = purrr::map(pred_frail,
+                                function(x) {
+                                 apply(x, 2, mean)
+                               }),
+   
+    # estimated actual risk (estimated obs proportion, observed)
+    sf_obs = purrr::map(validation,
+                        function(x) {
+                          sf_sum <- 
+                            summary(survival::survfit(Surv(surtime, cstatus) ~ 1,
+                                                      data = x),
+                                    extend = TRUE,
+                                    times = time_hors)
+                          
+                          sf_sum$surv[sf_sum$n.risk == 0] <- NA
+                          sf_obs_event <- 1 - sf_sum$surv}),
+   
+   # calibration
+   
+   # OE ratio - strat
+   OE_strat = purrr::map2(.x = sf_obs,
+                          .y = pred_avg_strat,
+                          ~ .x / .y),
+   
+    # OE ratio - frail
+   OE_frail = purrr::map2(.x = sf_obs,
+                          .y = pred_avg_frail,
+                          ~ .x / .y),
+   
+   # ICI/E50/E90 - frail t25
+   cal_meas_frail_t25  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_frail_t25,
+          t_hors = list(time_hors[1]),
+          predictions = purrr::map(pred_frail, ~ .x[, 1])),
+          calhaz_map),
+   
+   # ICI/E50/E90 - frail t50
+   cal_meas_frail_t50  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_frail_t50,
+          t_hors = list(time_hors[2]),
+          predictions = purrr::map(pred_frail, ~ .x[, 2])),
+          calhaz_map),
+   
+   # ICI/E50/E90 - frail t75
+   cal_meas_frail_t75  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_frail_t75,
+          t_hors = list(time_hors[3]),
+          predictions = purrr::map(pred_frail, ~ .x[, 3])),
+          calhaz_map),
+   
+   # stratify
+   # ICI/E50/E90 - strat t25
+   cal_meas_strat_t25  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_strat_t25,
+          t_hors = list(time_hors[1]),
+          predictions = purrr::map(pred_strat, ~ .x[, 1])),
+          calhaz_map),
+   
+   # ICI/E50/E90 - strat t50
+   cal_meas_strat_t50  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_strat_t50,
+          t_hors = list(time_hors[2]),
+          predictions = purrr::map(pred_strat, ~ .x[, 2])),
+          calhaz_map),
+   
+   # ICI/E50/E90 - strat t75
+   cal_meas_strat_t75  = purrr::pmap(
+     list(time = purrr::map(validation, ~ .x$surtime),
+          status = purrr::map(validation, ~ .x$cstatus),
+          covariates = cloglog_pred_strat_t75,
+          t_hors = list(time_hors[3]),
+          predictions = purrr::map(pred_strat, ~ .x[, 3])),
+          calhaz_map))
+   
+# tictoc::toc()
+```
+
+\newpage
+
+```{r, res_bladder, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, fig.align='center'}
+# Aggregating results
+
+# # Discrimination
+# df_frail_discr <-   do.call(rbind, df_tbl_bladder$score_frail_res)
+# df_strat_discr <- rbind(do.call(rbind, df_tbl_bladder$score_strat_t25),
+#                         do.call(rbind, df_tbl_bladder$score_strat_t50),
+#                         do.call(rbind, df_tbl_bladder$score_strat_t75))
+# 
+# # Discrimination stratify + frailty
+# df_discr_res <-
+#   rbind(df_strat_discr,
+#         df_frail_discr) %>%
+#   dplyr::mutate(model = dplyr::case_when(model == "prediction_model" ~ "strat",
+#                                          .default = "frail"))
+# 
+# # Usable comparisons
+# df_discr_res_miss <-
+#   df_discr_res %>%
+#   dplyr::group_by(model, times) %>%
+#   dplyr::summarise(miss_comp = round((sum(is.na(AUC)) / B) * 100, 2)) %>%
+#   dplyr::mutate(usable_comp = 100 - miss_comp)
+# 
+# rm(df_frail_discr,
+#    df_strat_discr)
+# 
+# # calibration measures results
+# 
+# # calibration measures
+# df_cal_res <-
+#   data.frame(
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
+#     times = rep(time_hors, each = B)) %>%
+# 
+#     dplyr::bind_cols(
+#       rbind(
+#         do.call(rbind, df_tbl_bladder$cal_meas_strat_t25),
+#         do.call(rbind, df_tbl_bladder$cal_meas_strat_t50),
+#         do.call(rbind, df_tbl_bladder$cal_meas_strat_t75),
+# 
+#         do.call(rbind, df_tbl_bladder$cal_meas_frail_t25),
+#         do.call(rbind, df_tbl_bladder$cal_meas_frail_t50),
+#         do.call(rbind, df_tbl_bladder$cal_meas_frail_t75))) %>%
+# 
+#   dplyr::rename(ICI = V1,
+#                 E50 = V2,
+#                 E90 = "90%") %>%
+# 
+#   dplyr::mutate(
+#     model = dplyr::case_when(model == "prediction_model" ~ "strat",
+#                              .default = model))
+# 
+# 
+# # O-E ratio
+# df_oe_res <-
+#   data.frame(
+#     model = rep(c("strat", "frail"), each = B * length(time_hors)),
+#     times = rep(time_hors, times = B)) %>%
+# 
+#   dplyr::bind_cols(
+#     rbind(
+#      do.call(rbind, lapply(df_tbl_bladder$OE_strat, cbind)),
+#      do.call(rbind, lapply(df_tbl_bladder$OE_frail, cbind)))) %>%
+# 
+#   dplyr::rename(
+#     OE_ratio = "...3") %>%
+# 
+#   dplyr::arrange(desc(model), times)
+# 
+# 
+# # All measures together
+# 
+# df_performances_bladder <-
+#   df_discr_res %>%
+#   dplyr::bind_cols(df_oe_res %>%
+#                      dplyr::select(-model,
+#                                    -times)) %>%
+#   dplyr::bind_cols(df_cal_res %>%
+#                      dplyr::select(-model,
+#                                    -times))
+# saveRDS(df_performances_bladder,
+#         file = here::here("Data/df_perf_casestudy_bladder.rds"))
+
+df_performances_bladder <- readRDS(file = here::here("Output/df_perf_casestudy_bladder.rds"))
+
+B <- 100
+df_perf_bladder_miss <-
+  df_performances_bladder %>%
+  dplyr::group_by(model, times) %>%
+  dplyr::summarise(miss_comp = round((sum(is.na(AUC)) / B) * 100, 2)) %>%
+  dplyr::mutate(usable_comp = 100 - miss_comp)
+
+# MC estimates
+
+df_MC_performances_bladder <-
+  df_performances_bladder %>%
+  
+  # keep only useful comparisons
+  dplyr::filter(!is.na(AUC)) %>%
+  
+  # descriptives by times
+  dplyr::group_by(times, model) %>%
+  dplyr::summarise(
+    
+    AUC_mean = mean(AUC, na.rm = T),
+    AUC_low = quantile(AUC, probs = 0.025, na.rm = T),
+    AUC_high = quantile(AUC, probs = 0.975, na.rm = T),
+    AUC_sd = sd(AUC, na.rm = T),
+    
+    IPA_mean = mean(IPA, na.rm = T),
+    IPA_low = quantile(IPA, probs = 0.025, na.rm = T),
+    IPA_high = quantile(IPA, probs = 0.975, na.rm = T),
+    IPA_sd = sd(IPA, na.rm = T),
+    
+    OE_ratio_mean = mean(OE_ratio, na.rm = T),
+    OE_ratio_low = quantile(OE_ratio, probs = 0.025, na.rm = T),
+    OE_ratio_high = quantile(OE_ratio, probs = 0.975, na.rm = T),
+    OE_ratio_sd = sd(OE_ratio, na.rm = T),
+    
+    ICI_mean = mean(ICI, na.rm = T),
+    ICI_low = quantile(ICI, probs = 0.025, na.rm = T),
+    ICI_high = quantile(ICI, probs = 0.975, na.rm = T),
+    ICI_sd = sd(ICI, na.rm = T),
+    
+    E50_mean = mean(E50, na.rm = T),
+    E50_low = quantile(E50, probs = 0.025, na.rm = T),
+    E50_high = quantile(E50, probs = 0.975, na.rm = T),
+    E50_sd = sd(E50, na.rm = T),
+    
+    E90_mean = mean(E90, na.rm = T),
+    E90_low = quantile(E90, probs = 0.025, na.rm = T),
+    E90_high = quantile(E90, probs = 0.975, na.rm = T),
+    E90_sd = sd(E90, na.rm = T)) %>%
+  
+   dplyr::mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+# Results
+df_MC_performances_bladder_res <-
+  df_MC_performances_bladder %>%
+  dplyr::left_join(df_perf_bladder_miss,
+                   by = c("model",
+                          "times")) %>%
+  dplyr::select(model,
+                times,
+                usable_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd,
+                OE_ratio_mean,
+                OE_ratio_sd,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd) %>%
+  dplyr::rename(
+    pct_comp = usable_comp)
+
+df_MC_performances_bladder_res_discr <-
+  df_MC_performances_bladder_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                AUC_mean,
+                AUC_sd,
+                IPA_mean,
+                IPA_sd)
+
+df_MC_performances_bladder_res_OE <-
+  df_MC_performances_bladder_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                OE_ratio_mean,
+                OE_ratio_sd)
+
+df_MC_performances_bladder_res_cal <-
+  df_MC_performances_bladder_res %>%
+  dplyr::select(model,
+                times,
+                pct_comp,
+                ICI_mean,
+                ICI_sd,
+                E50_mean,
+                E50_sd,
+                E90_mean,
+                E90_sd)
+
+kable(df_MC_performances_bladder_res_discr) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
+       "AUC" = 2,
+       "IPA" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Bladder cancer data" = 7))
+
+kable(df_MC_performances_bladder_res_OE) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
+       "O-E ratio" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Bladder cancer data" = 5))
+
+kable(df_MC_performances_bladder_res_cal) %>%
+  kableExtra::kable_styling("striped",
+                            position = "center") %>%
+    kableExtra::add_header_above(
+     c(" " = 3,
+       "ICI" = 2,
+       "E50" = 2,
+       "E90" = 2)) %>%
+  kableExtra::add_header_above(
+    c("Bladder cancer data" = 9))
+```
+
+
+\newpage
+
+#### **3. Additional investigations**
+We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting among clusters in which predictions were possible in both models.
+
+We provide the corresponding plots of predictions at the different specified time horizons from the stratified versus the shared gamma frailty model  
+
+```{r, additional_bladder, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
+
+bladder <- readRDS(here::here("Data/bladder.rds"))
+
+df_bladder <-
+  bladder %>%
+  dplyr::rename_all(tolower) %>%
+  dplyr::mutate(
+  
+    # combine status
+    cstatus = dplyr::case_when(
+      status %in% c(1, 2) ~ 1,
+      status == 0 ~ 0),
+    
+    age = factor(age,
+                 levels = c(0, 1),
+                 labels = c("<= 65 yr", "> 65 yr")),
+    
+    sex = factor(sex,
+                 levels = c(0, 1),
+                 labels = c("male", "female")),
+    
+    priorrec = factor(priorrec,
+                      levels = c(0, 1, 2),
+                      labels = c("primary",
+                                 "<= 1 yr",
+                                  "> 1 yr")),
+    
+    chemo = factor(chemo,
+                   levels = c(0, 1),
+                   labels = c("no", "yes")),
+    
+    notum = factor(notum,
+                   levels = c(0, 1, 2),
+                   labels = c("single tumor",
+                              "2-7 tumors",
+                              ">= 8 tumors")),
+    
+    tum3cm = factor(tum3cm,
+                    levels = c(0, 1),
+                    labels = c("< 3 cm", ">= 3 cm")),
+    
+    tlocc = factor(tlocc,
+                   levels = c(0, 1),
+                   labels = c("Ta", "T1")),
+    
+    cis = factor(cis, 
+                 levels = c(0, 1),
+                 labels = c("no", "yes")),
+    
+    glocal = factor(glocal, 
+                    levels = c(0, 1, 2),
+                    labels = c("G1", "G2", "G3")))
+
+# Centres with >= 10 patients
+table_bladder_sel <-
+  df_bladder %>%
+  dplyr::count(center) %>%
+  dplyr::filter(n >= 10)
+
+df_bladder_sel <- 
+  df_bladder %>%
+  dplyr::filter(center %in% table_bladder_sel$center)
+
+# Stratified Cox 
+cox_strat_bladder <-
+  survival::coxph(Surv(surtime, cstatus) ~ 
+                    age +
+                    sex +
+                    chemo + 
+                    tum3cm +
+                    notum +
+                    tlocc +
+                    glocal +
+                    strata(center), 
+                  data = df_bladder_sel,
+                  x = T,
+                  y = T, 
+                  ties = "breslow")
+
+# Frailty Cox 
+cox_frail_bladder <-
+  survival::coxph(Surv(surtime, cstatus) ~ 
+                    age +
+                    sex +
+                    chemo + 
+                    tum3cm +
+                    notum +
+                    tlocc +
+                    glocal +
+                    frailty(center), 
+                  data = df_bladder_sel,
+                  x = T,
+                  y = T, 
+                  ties = "breslow")
+
+## Predictions horizons
+# at 12, 24, and 36 months
+time_hors <- c(365.25, 730.5, 1095.75)
+
+
+# Predictions 
+# Stratified small
+pred_strat_bladder <- 1 - pec::predictSurvProb(cox_strat_bladder,
+                                               newdata = df_bladder_sel,
+                                               times = time_hors)
+
+# Frailty small
+pred_frail_bladder <- 1 - predict.coxph.gammafrail(model = cox_frail_bladder,
+                                                   newdata = df_bladder_sel,
+                                                   cluster = "center",
+                                                   times = time_hors)$conditional
+
+
+# Plot predictions
+# from stratify and frailty model
+
+# Small scenario at T25, T50 and T75
+oldpar <-
+  par(
+    mfrow = c(1, 3),
+    xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_bladder[, 1],
+     pred_frail_bladder[, 1],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 12 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 12 months"),
+     main = expression("Estimated mortality at 12 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_bladder[, 2],
+     pred_frail_bladder[, 2],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 24 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 24 months"),
+     main = expression("Estimated mortality at 24 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+par(xaxs = "i",
+    yaxs = "i",
+    las = 1)
+plot(pred_strat_bladder[, 3],
+     pred_frail_bladder[, 3],
+     xlim = c(0, 1.2),
+     xlab = expression("Predictions from stratified Cox at 36 months"),
+     ylim = c(0, 1.2),
+     ylab = expression("Predictions from frailty Cox at 36 months"),
+     main = expression("Estimated mortality at 36 months"),
+     bty = "n")
+abline(a = 0,
+       b = 1,
+       lwd = 2,
+       col = "red")
+
+```
+
+NOTE: comparisons only among clusters where predictions were possible for both models 
+
+\newpage
+
+### **Extra case study: insem data**
+We provide an empirical bonus case study analysis comparing the performance of the stratified and the shared gamma frailty Cox proportional hazards models for predicting time to first insemination in dairy heifer cows coming from different herds.  
+  
+The case study is the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html) described by the book of
+Duchateau and Janssen [The Frailty Model](https://link.springer.com/book/10.1007/978-0-387-72835-3) (2008) (example 1.8)
+
+#### **1. Descriptive statistics**
+
+We provide some descriptive statistics
+
+```{r, descriptives_insem, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center'}
 
 insem_tab_01 <-
   insem %>%
@@ -556,8 +2421,9 @@ gtsummary_table1 <-
     ),
   ) 
 
-gtsummary_table1 %>%
-  gtsummary::as_gt()
+
+gtsummary_table1
+# knitr::knit_print(gtsummary_table1)
 
 # Cluster size distribution
 table_cluster <-
@@ -658,7 +2524,7 @@ kable(q_surv[1, ]) %>%
       "Time quantile" = 3))
 ```
   
-### **2. Analysis**
+#### **2. Analysis**
 
 We provide the accuracy of predictions from the stratified and the shared gamma frailty Cox proportional hazards models in two scenarios
 
@@ -687,9 +2553,9 @@ The fixed time horizons are defined based on the $25^{th}$, $50^{th}$ and $75^{t
 
 \newpage
 
-#### **2.1 Small cluster size**
+##### **2.1 Small cluster size**
 
-```{r, cross_val_small, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+```{r, cross_val_small_insem, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
 
 # time horizons
 time_hors <- c(52, 91, 150)
@@ -1246,9 +3112,9 @@ kable(df_MC_performances_small_res_cal) %>%
 ```
 
 \newpage
-#### **2.2 Large cluster size**
+##### **2.2 Large cluster size**
 
-```{r, cross_val_large, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
+```{r, cross_val_large_insem, message=FALSE, warning=FALSE, echo=TRUE, eval=FALSE, results='hide'}
 # time horizons
 time_hors <- c(52, 91, 150)
 
@@ -1795,12 +3661,12 @@ kable(df_MC_performances_large_res_cal) %>%
     c("Large cluster scenario" = 9))
 ```
 
-### **3. Additional investigations**
+#### **3. Additional investigations**
 We additionally estimate predictions from the stratified and the shared gamma frailty Cox model using all data without splitting among clusters in which predictions were possible in both models.
 
 We provide the corresponding plots of predictions at different time horizons from the stratified versus the shared gamma frailty model in the small and large cluster scenario.  
 
-```{r, additional, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center', fig.width=7, fig.height=7}
+```{r, additional_insem, message=FALSE, warning=FALSE, echo=TRUE, eval=TRUE, fig.align='center', fig.width=7, fig.height=7}
 
 # Herds < 50 (herds >= 10)
 table_insem_small <-
@@ -2023,8 +3889,15 @@ abline(a = 0,
 
 NOTE: comparisons only among clusters where predictions were possible for both models 
 
+\newpage
+
+### **Data availability statement**
+The first case study dataset was collected by the Center for International Blood and Marrow Transplant Research (CIBMTR) which is supported primarily by the Public Health Service U24CA076518 from the National Cancer Institute; the National Heart, Lung, and Blood Institute; the National Institute of Allergy and Infectious Diseases; 75R60222C00011 from the Health Resources and Services Administration; N00014-23-1-2057 and N00014-24-1-2507 from the Office of Naval Research; NMDP; and the Medical College of Wisconsin.
+
+
 
 ### **Reproducibility ticket**
 ```{r repro_ticket, echo=TRUE, eval=TRUE, message=FALSE, warning=FALSE}
 sessionInfo()
 ```
+
