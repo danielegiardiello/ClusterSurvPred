@@ -1,5 +1,9 @@
 # Output folder
 
++ df_perf_casestudy_cimbtr.rds provides the accuracy of the prediction for the CIMBTR data case study about mortality after transplant among patients with myelodysplastic syndrome.  
+
++ df_perf_casestudy_bladder.rds provides the accuracy of the prediction for the bladder cancer data.  
+
 + df_perf_casestudy_large.rds provides the accuracy of the predictions for the large cluster scenario of the illustrative case study 
 over the 100 repeated random splits (70% derivation, 30% validation) stratified by the cluster
 
