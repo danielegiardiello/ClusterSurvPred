@@ -692,7 +692,8 @@ gtsummary_cimbtr_table1 <-
 
 
 gtsummary_cimbtr_table1 %>%
-  gtsummary::as_gt(.)
+  gtsummary::as_gt(.) %>%
+  gt::as_raw_html(inline_css = FALSE)
 
 # Barplot
 par(xaxs = "i",
@@ -1517,7 +1518,8 @@ gtsummary_bladder_table1 <-
 
 
 gtsummary_bladder_table1 %>%
-  gtsummary::as_gt(.)
+  gtsummary::as_gt(.) %>%
+  gt::as_raw_html(inline_css = FALSE)
 ```
 
 
@@ -2413,7 +2415,8 @@ gtsummary_table1 <-
 
 
 gtsummary_table1 %>%
-  gtsummary::as_gt(.)
+  gtsummary::as_gt(.) %>%
+  gt::as_raw_html(inline_css = FALSE)
 
 # Cluster size distribution
 table_cluster <-
