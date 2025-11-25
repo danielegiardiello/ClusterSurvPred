@@ -1,14 +1,15 @@
 ---
-title: The impact of the number and the size of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models
-subtitle: R code for the illustrative case study
-author: "Daniele Giardiello, Edoardo Ratti, Peter C. Austin"  
+title: "The impact of the number and the size of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models"
+subtitle: "R code for the illustrative case study"
+author: "Daniele Giardiello, Edoardo Ratti, Peter C. Austin"
 always_allow_html: true
 output:
   github_document:
     toc: true
     toc_depth: 4
-  # html_document:
-  keep_text: true
+  html_document:
+    self_contained: true
+keep_text: true
 ---
 
 ```{r setup, include=FALSE}
