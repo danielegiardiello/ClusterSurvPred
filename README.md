@@ -13,7 +13,11 @@ Researchers in biomedical research often analyse data that are subject to cluste
 </div>
 
 ## Usage
-The illustrative case study accompanying this work is the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html)
+The illustrative case studies accompanying this work are:
+
++ mortality after transplant among patient with myelodysplastic syndrome using the [CIMBTR data](https://cibmtr.org/CIBMTR/Resources/Publicly-Available-Datasets). In particular [P-5300](https://cibmtr.org/Manuscript/a020h00001GkuIpAAJ/P-5300)  
++ bladder cancer data from R package [`survival`](https://cran.r-project.org/web/packages/survival/index.html)  
++ extra (non clinical) case study: the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html)  
 
 You can either download a zip file containing the directory, or you can clone it by using
 
@@ -42,6 +46,8 @@ Code for the illustrative case study:
 ├── 01_casestudy_pdf.Rmd
 ├── ClusterSurvPred.Rproj
 ├── Data
+│   ├── bladder.rds
+│   ├── cimbtr_P5300.rds
 │   └── insem.rds
 ├── Functions
 │   ├── NEWS.md
@@ -51,19 +57,43 @@ Code for the illustrative case study:
 ├── imgs
 │   ├── additional-1.pdf
 │   ├── additional-1.png
+│   ├── additional_bladder-1.pdf
+│   ├── additional_bladder-1.png
+│   ├── additional_insem-1.pdf
+│   ├── additional_insem-1.png
+│   ├── additional_transplant-1.pdf
+│   ├── additional_transplant-1.png
 │   ├── descriptives-1.pdf
 │   ├── descriptives-1.png
 │   ├── descriptives-2.pdf
 │   ├── descriptives-2.png
+│   ├── descriptives_bladder-1.pdf
+│   ├── descriptives_bladder-2.pdf
+│   ├── descriptives_insem-1.pdf
+│   ├── descriptives_insem-1.png
+│   ├── descriptives_insem-2.pdf
+│   ├── descriptives_insem-2.png
+│   ├── descriptives_transplant-1.pdf
+│   ├── descriptives_transplant-1.png
+│   ├── descriptives_transplant-2.pdf
+│   ├── descriptives_transplant-2.png
+│   ├── descriptive_bladder-1.pdf
+│   ├── descriptive_bladder-1.png
+│   ├── descriptive_bladder-2.pdf
+│   ├── descriptive_bladder-2.png
 │   ├── KMcurves-1.png
 │   └── plot_cluster_size-1.png
 ├── LICENSE
 ├── Output
+│   ├── df_perf_casestudy_bladder.rds
+│   ├── df_perf_casestudy_cimbtr.rds
 │   ├── df_perf_casestudy_large.rds
 │   ├── df_perf_casestudy_small.rds
 │   └── ReadMe.md
 └── README.md
 ```
+
+This was generated using `fs::dir_tree()`
 
 ## Data availability statement
 The first case study dataset was collected by the Center for International Blood and Marrow Transplant
