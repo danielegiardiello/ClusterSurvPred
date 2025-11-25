@@ -65,6 +65,14 @@ Code for the illustrative case study:
 └── README.md
 ```
 
+## Data availability statement
+The first case study dataset was collected by the Center for International Blood and Marrow Transplant
+Research (CIBMTR) which is supported primarily by the Public Health Service U24CA076518 from the
+National Cancer Institute; the National Heart, Lung, and Blood Institute; the National Institute of Allergy
+and Infectious Diseases; 75R60222C00011 from the Health Resources and Services Administration; N00014-
+23-1-2057 and N00014-24-1-2507 from the Office of Naval Research; NMDP; and the Medical College of
+Wisconsin.
+
 ## Contributions
 
 | Name                                                         | Affiliation                           | Role                  |
