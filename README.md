@@ -96,7 +96,13 @@ Code for the illustrative case study:
 This was generated using `fs::dir_tree()`
 
 ## Data availability statement
-The first case study dataset was collected by the Center for International Blood and Marrow Transplant
+This first case study dataset was collected by the Center for International Blood and Marrow Transplant Research (CIBMTR) 
+which is supported primarily by the Public Health Service U24CA076518 from the National Cancer Institute; 
+the National Heart, Lung, and Blood Institute; the National Institute of Allergy and Infectious Diseases; 
+75R60222C00011 from the Health Resources and Services Administration; 
+N00014-25-1-2146 from the Office of Naval Research; NMDP; and the Medical College of Wisconsin.
+
+In particular, the first case study dataset was collected by the Center for International Blood and Marrow Transplant
 Research (CIBMTR) which is supported primarily by the Public Health Service U24CA076518 from the
 National Cancer Institute; the National Heart, Lung, and Blood Institute; the National Institute of Allergy
 and Infectious Diseases; 75R60222C00011 from the Health Resources and Services Administration; N00014-
