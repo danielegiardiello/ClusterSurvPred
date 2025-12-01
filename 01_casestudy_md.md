@@ -555,8 +555,7 @@ calhaz_map <- function(time,
 
 ### **Import data**
 
-Insem data can be imported using the `parfm` R package. We also saved
-insem data in our repository in the .rds format.
+We also saved data in our repository in the .rds format.
 
 ``` r
 # Import from the repository
@@ -569,7 +568,7 @@ insem <- readRDS(here::here("Data/insem.rds"))
 #      package = "parfm")
 # 
 # data(bladder,
-#      package = "survival")
+#      package = "frailtyHL")
 ```
 
 ### **First case study: mortality after transplant in myelodysplastic syndrome patients**
