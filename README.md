@@ -16,7 +16,7 @@ Researchers in biomedical research often analyse data that are subject to cluste
 The illustrative case studies accompanying this work are:
 
 + mortality after transplant among patient with myelodysplastic syndrome using the [CIMBTR data](https://cibmtr.org/CIBMTR/Resources/Publicly-Available-Datasets). In particular [P-5300](https://cibmtr.org/Manuscript/a020h00001GkuIpAAJ/P-5300)  
-+ bladder cancer data from R package [`survival`](https://cran.r-project.org/web/packages/survival/index.html)  
++ bladder cancer data from R package [`frailtyHL`](https://cran.r-project.org/web/packages/frailtyHL/index.html)  
 + extra (non clinical) case study: the insem data from the R package [`parfm`](https://cran.r-project.org/web/packages/parfm/index.html)  
 
 You can either download a zip file containing the directory, or you can clone it by using
