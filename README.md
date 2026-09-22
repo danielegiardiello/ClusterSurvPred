@@ -1,7 +1,9 @@
 
 
 # The impact of the number and the size of clusters on prediction performance of the stratified and the conditional shared gamma frailty Cox proportional hazards models
+Article published in Biometrical Journal (2026) [here](https://onlinelibrary.wiley.com/doi/10.1002/bimj.70180).
 
+[![DOI:10.1177/09622802221102623](https://zenodo.org/badge/DOI/10.1002/09622802221102623.svg)](https://doi.org/10.1002/bimj.70180)
 [![medRxiv doi](https://img.shields.io/badge/medRxiv–doi-10.1101%2F2025.10.17.25338219v1-FFA500.svg)](https://doi.org/10.1101/2025.10.17.25338219)
 
 **Authors**: Daniele Giardiello, Edoardo Ratti, Peter C. Austin
